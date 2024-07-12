@@ -1,0 +1,6 @@
+DebugResult/
+SBFL/
+Stores/
+*__pycache__/
+*.vscode/
+classtracer/
