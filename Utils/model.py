@@ -42,11 +42,13 @@ def set_models(path_manager: PathManager):
     if path_manager.reasoning_series == "lmstudio":
         path_manager.reasoning_llm = LMStudio(
             model_name=path_manager.reasoning_model,
-            base_url=path_manager.reasoning_base_url
+            base_url=path_manager.reasoning_base_url,
+            timeout=180
         )
     elif path_manager.reasoning_series == "openai":
         path_manager.reasoning_llm = OpenAI(
             model=path_manager.reasoning_model,
             api_key=path_manager.reasoning_api_key,
-            api_base=path_manager.reasoning_base_url
+            api_base=path_manager.reasoning_base_url,
+            timeout=180
         )

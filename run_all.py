@@ -110,9 +110,9 @@ D4J_ALL = {
 D4J = {
     "2.0.1": {
         "Closure": {
-            "begin": 15,
+            "begin": 53,
             "end": 133,
-            "deprecate": [63, 93]
+            "deprecate": [49, 63, 93]
         },
     }
 }
