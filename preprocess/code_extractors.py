@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
-
+from tenacity import retry, wait_fixed, stop_after_attempt
 from llama_index.core.async_utils import DEFAULT_NUM_WORKERS, run_jobs
 from llama_index.core.bridge.pydantic import Field
 from llama_index.core.extractors.interface import BaseExtractor
@@ -76,6 +76,7 @@ class CodeSummaryExtractor(BaseExtractor):
         else:
             return 300
 
+    @retry(wait=wait_fixed(1), stop=stop_after_attempt(3))
     async def _agenerate_node_summary(self, node: BaseNode) -> str:
         """Generate a summary for a code node."""
         if self.is_text_node_only and not isinstance(node, CodeNode):

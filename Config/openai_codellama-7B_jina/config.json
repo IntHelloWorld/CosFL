@@ -14,7 +14,7 @@
     "embed_api_key": "jina_28bca4e341664d619f580aefa0115141D_xM1gOcqRMzwtWnIkW3H2itrzpk",
     "embed_base_url": "",
     "summary_series": "lmstudio",
-    "summary_model": "codellama-7B",
+    "summary_model": "codellama-13B",
     "summary_api_key": "",
     "summary_base_url": "http://localhost:1234/v1",
     "summary_workers": 1,

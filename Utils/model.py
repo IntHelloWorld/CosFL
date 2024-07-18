@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-from unittest.mock import DEFAULT
 
 from llama_index.core import Settings
 from llama_index.embeddings.jinaai import JinaEmbedding
@@ -11,7 +10,7 @@ from llama_index.llms.openai import OpenAI
 sys.path.append(Path(__file__).resolve().parents[1].as_posix())
 from Utils.path_manager import PathManager
 
-DEFAULT_TIMEOUT = 60
+DEFAULT_TIMEOUT = 120
 
 def set_models(path_manager: PathManager):
     # set embedding model
