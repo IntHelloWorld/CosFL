@@ -1,0 +1,10 @@
+llama-index
+llama-index-postprocessor-jinaai-rerank
+llama-index-embeddings-jinaai
+chromadb
+llama-index-vector-stores-chroma
+more_itertools
+tree_sitter==0.21.3
+tree_sitter_languages
+llama-index-llms-lmstudio
+unidiff

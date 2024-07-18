@@ -20,7 +20,8 @@ Below is the source code of a method in {language} programming language:
 {code_str}
 ```
 
-Please summarize the functionality of the above method in no more than {summary_length} words.\
+Please summarize the functionality of the above method in no more than {summary_length} words.
+Please repeat the method name at the beginning of your response.\
 """
 
 

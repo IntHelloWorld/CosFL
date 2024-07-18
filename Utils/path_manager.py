@@ -105,7 +105,7 @@ class PathManager():
         
         # stores_dir
         self.index_id = f"{args.project}-{args.bugID}"
-        self.stores_dir = os.path.join(self.root_path, "Stores", args.project)
+        self.stores_dir = os.path.join(self.root_path, "Stores", self.summary_model, args.project)
         
         self.res_file = os.path.join(self.res_path, "result.json")
         self.test_failure_file = os.path.join(self.cache_path, "test_failure.pkl")

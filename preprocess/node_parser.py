@@ -190,6 +190,7 @@ class JavaNodeParser(NodeParser):
         documents: Sequence[Document],
         classes: List[str],
         show_progress: bool = False,
+        all_methods: bool = False,
         **kwargs: Any,
     ) -> List[BaseNode]:
         """Parse document into nodes.
@@ -207,11 +208,11 @@ class JavaNodeParser(NodeParser):
                 documents, show_progress, "Parsing documents into nodes"
             )
 
-            # TODO: a bit of a hack rn for tqdm
             for doc in documents_with_progress:
-                class_name = doc.metadata["file_name"].split(".")[0]
-                if class_name not in classes:
-                    continue
+                if not all_methods:
+                    class_name = doc.metadata["file_name"].split(".")[0]
+                    if class_name not in classes:
+                        continue
                 
                 # parse code into AST
                 tree = self.parser.parse(bytes(doc.text, "utf-8"))

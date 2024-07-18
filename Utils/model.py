@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from unittest.mock import DEFAULT
 
 from llama_index.core import Settings
 from llama_index.embeddings.jinaai import JinaEmbedding
@@ -10,6 +11,7 @@ from llama_index.llms.openai import OpenAI
 sys.path.append(Path(__file__).resolve().parents[1].as_posix())
 from Utils.path_manager import PathManager
 
+DEFAULT_TIMEOUT = 60
 
 def set_models(path_manager: PathManager):
     # set embedding model
@@ -29,7 +31,8 @@ def set_models(path_manager: PathManager):
     if path_manager.summary_series == "lmstudio":
         Settings.llm = LMStudio(
             model_name=path_manager.summary_model,
-            base_url=path_manager.summary_base_url
+            base_url=path_manager.summary_base_url,
+            timeout=DEFAULT_TIMEOUT
         )
     elif path_manager.summary_series == "openai":
         Settings.llm = OpenAI(
@@ -43,12 +46,27 @@ def set_models(path_manager: PathManager):
         path_manager.reasoning_llm = LMStudio(
             model_name=path_manager.reasoning_model,
             base_url=path_manager.reasoning_base_url,
-            timeout=180
+            timeout=DEFAULT_TIMEOUT
         )
     elif path_manager.reasoning_series == "openai":
         path_manager.reasoning_llm = OpenAI(
             model=path_manager.reasoning_model,
             api_key=path_manager.reasoning_api_key,
             api_base=path_manager.reasoning_base_url,
-            timeout=180
+            timeout=DEFAULT_TIMEOUT
+        )
+
+def set_summary_model(path_manager: PathManager):
+    if path_manager.summary_series == "lmstudio":
+        Settings.llm = LMStudio(
+            model_name=path_manager.summary_model,
+            base_url=path_manager.summary_base_url,
+            timeout=DEFAULT_TIMEOUT,
+            request_timeout=DEFAULT_TIMEOUT
+        )
+    elif path_manager.summary_series == "openai":
+        Settings.llm = OpenAI(
+            model=path_manager.summary_model,
+            api_key=path_manager.summary_api_key,
+            api_base=path_manager.summary_base_url
         )

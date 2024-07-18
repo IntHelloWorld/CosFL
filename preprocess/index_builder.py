@@ -1,13 +1,12 @@
 import os
+import re
 import shutil
 import sys
 from pathlib import Path
-from tabnanny import verbose
 from typing import Dict, List
 
 import chromadb
 import more_itertools
-from attr import has
 from llama_index.core import (
     Settings,
     SimpleDirectoryReader,
@@ -18,7 +17,7 @@ from llama_index.core.indices.utils import embed_nodes
 from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.core.storage.docstore.types import DEFAULT_PERSIST_FNAME
 from llama_index.vector_stores.chroma import ChromaVectorStore
-from sympy import true
+from sympy import N
 
 sys.path.append(Path(__file__).resolve().parents[1].as_posix())
 from preprocess.code_extractors import CodeSummaryExtractor
@@ -64,11 +63,15 @@ class ProjectIndexBuilder():
         self.path_manager.logger.info(f"[loading] {len(documents)} java files loaded")
         return documents
     
-    def _load_nodes(self, documents, class_names):
+    def _load_nodes(self, documents, class_names, all_methods=False):
         # parse documents to code nodes according to the AST
         self.path_manager.logger.info(f"[loading] Loading method nodes")
         java_node_parser = JavaNodeParser.from_defaults()
-        nodes = java_node_parser.get_nodes_from_documents(documents, class_names, show_progress=True)
+        nodes = java_node_parser.get_nodes_from_documents(
+            documents,
+            class_names,
+            show_progress=True,
+            all_methods=all_methods)
         self.path_manager.logger.info(f"[loading] {len(nodes)} nodes loaded")
         return nodes
     
@@ -122,10 +125,11 @@ class ProjectIndexBuilder():
         else:
             doc_store = SimpleDocumentStore()
         
-        # nodes = nodes[:5]  # for testing
+        # for testing
+        # method_nodes_dict = dict(list(method_nodes_dict.items())[:5])
 
-        # extract summaries for method nodes
-        summarized_nodes = []
+        # keep the already summarized nodes
+        already_summarized_nodes = []
         no_summary_nodes = []
         for node_id in method_nodes_dict:
             if doc_store.document_exists(node_id):
@@ -133,20 +137,24 @@ class ProjectIndexBuilder():
                 new_doc = method_nodes_dict[node_id]
                 new_doc.metadata["summary"] = old_doc.metadata["summary"]
                 doc_store.delete_document(node_id)
-                summarized_nodes.append(new_doc)
+                already_summarized_nodes.append(new_doc)
             else:
                 no_summary_nodes.append(method_nodes_dict[node_id])
+        doc_store.add_documents(already_summarized_nodes)
+        doc_store.persist(self.doc_store_file)
         
+        # extract summaries for the rest nodes
+        new_summarized_nodes = []
         if no_summary_nodes:
             batches = list(more_itertools.chunked(no_summary_nodes, 50))
             for i, batch in enumerate(batches):
                 self.path_manager.logger.info(f"[loading] Extracting Summaries for {len(no_summary_nodes)} code, chunk {i+1}/{len(batches)}")
-                nodes = self._extract_summaries(batch)
-                summarized_nodes.extend(nodes)
+                batch_summarized_nodes = self._extract_summaries(batch)
+                doc_store.add_documents(batch_summarized_nodes)
+                doc_store.persist(self.doc_store_file)
+                new_summarized_nodes.extend(batch_summarized_nodes)
 
-        doc_store.add_documents(summarized_nodes)
-        doc_store.persist(self.doc_store_file)
-        return summarized_nodes
+        return already_summarized_nodes + new_summarized_nodes
     
     def _embed_nodes(self, summarized_nodes):
         db = chromadb.PersistentClient(path=self.vector_store_dir)
@@ -204,3 +212,65 @@ class ProjectIndexBuilder():
             show_progress=True
         )
         return index
+    
+    def build_summary(self, all_methods=False):
+        def parse_sbfl(sbfl_file):
+            res = {}
+            with open(sbfl_file, "r") as f:
+                line = f.readline() # skip the first line
+                line = f.readline().strip("\n")
+                while line:
+                    full_name, method_name, line_num, score = re.split(r"[#:;]", line)
+                    temp = full_name.split("$")
+                    if len(temp) > 2: # inner class
+                        full_name = temp[0] + "$" + temp[1]
+                    if score == "0.0":
+                        break
+                    try:
+                        res[full_name].append(int(line_num))
+                    except:
+                        res[full_name] = [int(line_num)]
+                    line = f.readline().strip("\n")
+            return res
+        
+        def _any_covered(node, sbfl_reses):
+            if all_methods:
+                return True
+            for res in sbfl_reses:
+                if self._is_covered(node, res):
+                    return True
+            return False
+        
+        sbfl_names = ["tarantula","ochiai","jaccard","ample","ochiai2","dstar2"]
+        sbfl_files = []
+        for name in sbfl_names:
+            sbfl_files.append(os.path.join(
+                self.path_manager.root_path,
+                "SBFL",
+                "results",
+                self.path_manager.project,
+                str(self.path_manager.bug_id),
+                f"{name}.ranking.csv"
+            ))
+        
+        sbfl_reses = []
+        if not all_methods:
+            for sbfl_file in sbfl_files:
+                sbfl_reses.append(parse_sbfl(sbfl_file))
+        
+        # get documents and nodes based on coverage
+        method_nodes_dict = {}
+        documents = self._load_documents()
+        all_nodes = self._load_nodes(documents, self.class_names, all_methods)
+        num_methods = 0
+        num_covered = 0
+        for node in all_nodes:
+            if node.metadata["node_type"] == "method_node":
+                num_methods += 1
+                if _any_covered(node, sbfl_reses):
+                    num_covered += 1
+                    if node.id_ not in method_nodes_dict:
+                        method_nodes_dict[node.id_] = node
+        self.path_manager.logger.info(f"[loading] {num_covered}/{num_methods} method nodes are considered")
+
+        nodes = self._summarize_nodes(method_nodes_dict)
