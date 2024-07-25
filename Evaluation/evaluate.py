@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from typing import List
 
+from langchain_core.documents import Document
 from llama_index.core.schema import NodeWithScore
 
 sys.path.append(Path(__file__).resolve().parents[1].as_posix())
@@ -19,11 +20,33 @@ def evaluate(
 ):
     results = {"matches":[], "methods":[]}
     for i, node in enumerate(nodes):
-        localized_method_text = node.text.replace("\r", "")
+        localized_method_text = node.text
         results["methods"].append(localized_method_text)
         for buggy_method in test_failure_obj.buggy_methods:
             if buggy_method.text == localized_method_text:
                 results["matches"].append(i + 1)
+
+    with open(path_manager.res_file, 'w') as f:
+        json.dump(results, f, indent=4)
+
+
+def evaluate_others(
+    path_manager: PathManager,
+    docs_list: List[List[Document]],
+    test_failure_obj: TestFailure
+):
+    match = [0 * len(docs_list[0])]
+    for docs in docs_list:
+        for i, doc in enumerate(docs):
+            localized_method_text = doc.page_content
+            for buggy_method in test_failure_obj.buggy_methods:
+                if buggy_method.text == localized_method_text:
+                    match[i] = 1
+    
+    results = {"matches":[]}
+    for i in range(len(match)):
+        if match[i] == 1:
+            results["matches"].append(i + 1)
 
     with open(path_manager.res_file, 'w') as f:
         json.dump(results, f, indent=4)

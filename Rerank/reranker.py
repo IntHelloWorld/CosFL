@@ -42,7 +42,7 @@ class ChatReranker:
             return score
         
         messages = rerank_template.format_messages(
-            queries_ph=self.queries_text,
+            causes_ph=self.queries_text["Causes"],
             method_code_ph=node.node.text
         )
         

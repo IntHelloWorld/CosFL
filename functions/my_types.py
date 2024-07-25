@@ -12,6 +12,7 @@ class JMethod():
     comment: str
     text: str
     loc: Tuple[Tuple[int, int], Tuple[int, int]]
+    class_full_name: Optional[str] = None
     
     def get_signature(self) -> str:
         return f"{self.return_type} {self.class_name}::{self.name}({','.join(self.param_types)})"
@@ -69,7 +70,7 @@ class TestFailure():
     project: str
     bug_ID: int
     test_classes: List[TestClass]
-    buggy_methods: Optional[List[str]] = None
+    buggy_methods: Optional[List[JMethod]] = None
     queries: Optional[List[str]] = None
 
 

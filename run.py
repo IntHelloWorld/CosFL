@@ -8,13 +8,8 @@ from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.postprocessor.jinaai_rerank import JinaRerank
 
 from Evaluation.evaluate import evaluate
-from functions.d4j import (
-    check_out,
-    get_failed_tests,
-    get_properties,
-    parse_sbfl,
-    run_all_tests,
-)
+from functions.d4j import check_out, get_failed_tests, get_properties, run_all_tests
+from functions.sbfl import parse_sbfl
 from preprocess.index_builder import ProjectIndexBuilder
 from Rerank.reranker import ChatReranker
 from TestAnalysis.analyzer import TestAnalyzer
@@ -34,6 +29,8 @@ def main():
                         help="Name of project, your debug result will be generated in DebugResult/d4jversion_project_bugID")
     parser.add_argument('--bugID', type=int, default=4,
                         help="Prompt of software")
+    parser.add_argument('--clear', type=bool, default=True,
+                        help="If clear the checkout project")
     args = parser.parse_args()
 
     # ----------------------------------------
@@ -92,7 +89,7 @@ def main():
         #          SBFL results
         # ----------------------------------------
 
-        sbfl_res = parse_sbfl(path_manager)
+        sbfl_res = parse_sbfl(path_manager.sbfl_file)
 
         # ----------------------------------------
         #          Load Index
@@ -101,14 +98,6 @@ def main():
         path_manager.logger.info("[load data] start...")
         index_builder = ProjectIndexBuilder(path_manager)
         index = index_builder.build_index(sbfl_res)
-        
-        # doc_store = SimpleDocumentStore.from_persist_dir(path_manager.stores_dir)
-        # import hashlib
-        # sha256 = hashlib.sha256()
-        # buggy_text = test_failure_obj.buggy_methods[0].text
-        # sha256.update(buggy_text.encode("utf-8"))
-        # unique_id = sha256.hexdigest()
-        # node = doc_store.get_document(unique_id)
         
         # ----------------------------------------
         #          Retrieve
@@ -164,8 +153,9 @@ def main():
     
     evaluate(path_manager, result_nodes, test_failure_obj)
     
-    shutil.rmtree(path_manager.buggy_path)
-    shutil.rmtree(path_manager.fixed_path)
+    if args.clear:
+        shutil.rmtree(path_manager.buggy_path)
+        shutil.rmtree(path_manager.fixed_path)
 
 if __name__ == "__main__":
     main()

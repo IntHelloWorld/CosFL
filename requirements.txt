@@ -1,3 +1,6 @@
+rank_bm25
+scikit-learn
+langchain
 llama-index
 llama-index-postprocessor-jinaai-rerank
 llama-index-embeddings-jinaai

@@ -17,9 +17,8 @@ from llama_index.core.indices.utils import embed_nodes
 from llama_index.core.storage.docstore import SimpleDocumentStore
 from llama_index.core.storage.docstore.types import DEFAULT_PERSIST_FNAME
 from llama_index.vector_stores.chroma import ChromaVectorStore
-from sympy import N
 
-sys.path.append(Path(__file__).resolve().parents[1].as_posix())
+from functions.sbfl import get_all_sbfl_res
 from preprocess.code_extractors import CodeSummaryExtractor
 from preprocess.node_parser import JavaNodeParser
 from Utils.path_manager import PathManager
@@ -185,6 +184,12 @@ class ProjectIndexBuilder():
                 node.embedding = id_to_embed_map[node.id_]
             vector_store.add(no_embeded_nodes)
         return summarized_nodes
+    
+    def build_nodes(self, sbfl_res: Dict[str, List[int]]):
+        method_nodes_dict = self._get_all_method_nodes(sbfl_res)
+        # nodes = self._summarize_nodes(method_nodes_dict)
+        # nodes = self._embed_nodes(nodes)
+        return list(method_nodes_dict.values())
 
     def build_index(self, sbfl_res: Dict[str, List[int]]):
         # load from cached index
@@ -214,24 +219,6 @@ class ProjectIndexBuilder():
         return index
     
     def build_summary(self, all_methods=False):
-        def parse_sbfl(sbfl_file):
-            res = {}
-            with open(sbfl_file, "r") as f:
-                line = f.readline() # skip the first line
-                line = f.readline().strip("\n")
-                while line:
-                    full_name, method_name, line_num, score = re.split(r"[#:;]", line)
-                    temp = full_name.split("$")
-                    if len(temp) > 2: # inner class
-                        full_name = temp[0] + "$" + temp[1]
-                    if score == "0.0":
-                        break
-                    try:
-                        res[full_name].append(int(line_num))
-                    except:
-                        res[full_name] = [int(line_num)]
-                    line = f.readline().strip("\n")
-            return res
         
         def _any_covered(node, sbfl_reses):
             if all_methods:
@@ -255,8 +242,7 @@ class ProjectIndexBuilder():
         
         sbfl_reses = []
         if not all_methods:
-            for sbfl_file in sbfl_files:
-                sbfl_reses.append(parse_sbfl(sbfl_file))
+            sbfl_reses = get_all_sbfl_res(sbfl_files)
         
         # get documents and nodes based on coverage
         method_nodes_dict = {}

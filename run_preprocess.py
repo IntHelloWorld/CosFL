@@ -3,10 +3,7 @@ import os
 import shutil
 import sys
 
-
-from functions.d4j import (
-    check_out, get_properties
-)
+from functions.d4j import check_out, get_properties
 from preprocess.index_builder import ProjectIndexBuilder
 from Utils.model import set_models, set_summary_model
 from Utils.path_manager import PathManager
@@ -60,7 +57,6 @@ def main():
     index_builder = ProjectIndexBuilder(path_manager)
     _ = index_builder.build_summary(all_methods=True)
 
-    
     shutil.rmtree(path_manager.buggy_path)
     shutil.rmtree(path_manager.fixed_path)
     shutil.rmtree(path_manager.cache_path)

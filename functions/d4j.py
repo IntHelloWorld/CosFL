@@ -34,11 +34,17 @@ AGENT_JAR = os.path.join(root, "functions/classtracer/target/classtracer-1.0.jar
 
 
 def check_out(path_manager: PathManager):
-    with WorkDir(path_manager.res_path):
+    with WorkDir(path_manager.bug_path):
         if not os.path.exists(path_manager.buggy_path):
-            run_cmd(f"defects4j checkout -p {path_manager.project} -v {path_manager.bug_id}b -w buggy")
+            if path_manager.sub_proj:
+                run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}b -w buggy -s {path_manager.sub_proj}")
+            else:
+                run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}b -w buggy")
         if not os.path.exists(path_manager.fixed_path):
-            run_cmd(f"defects4j checkout -p {path_manager.project} -v {path_manager.bug_id}f -w fixed")
+            if path_manager.sub_proj:
+                run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}f -w fixed -s {path_manager.sub_proj}")
+            else:
+                run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}f -w fixed")
 
 
 def run_single_test(test_case: TestCase, path_manager: PathManager):
@@ -56,8 +62,8 @@ def run_single_test(test_case: TestCase, path_manager: PathManager):
         return test_output, stack_trace
     
     git_clean(path_manager.buggy_path)
-    out, err = run_cmd(f"defects4j compile -w {path_manager.buggy_path}")
-    out, err = run_cmd(f"timeout 90 defects4j test -n -t {test_case.name} -w {path_manager.buggy_path}")
+    out, err = run_cmd(f"{path_manager.bug_exec} compile -w {path_manager.buggy_path}")
+    out, err = run_cmd(f"timeout 90 {path_manager.bug_exec} test -n -t {test_case.name} -w {path_manager.buggy_path}")
     with open(f"{path_manager.buggy_path}/failing_tests", "r") as f:
         test_res = f.readlines()
     test_output, stack_trace = parse_test_report(test_res)
@@ -82,7 +88,7 @@ def run_test_with_instrument(test_case: TestCase, path_manager: PathManager):
         shutil.rmtree(path_manager.test_cache_dir, ignore_errors=True)
         os.makedirs(path_manager.test_cache_dir, exist_ok=True)
         git_clean(path_manager.buggy_path)
-        cmd = f"defects4j test -n -w {path_manager.buggy_path} "\
+        cmd = f"{path_manager.bug_exec} test -n -w {path_manager.buggy_path} "\
             f"-t {test_case.name} "\
             f"-a -Djvmargs=-javaagent:{path_manager.agent_lib}=outputDir={path_manager.test_cache_dir},classesPath={class_path}"
         run_cmd(cmd)
@@ -96,17 +102,16 @@ def run_test_with_instrument(test_case: TestCase, path_manager: PathManager):
         assert all(os.path.exists(f) for f in all_files)
     
     with open(test_output_file, "r") as f:
-        test_output = f.readlines()
+        test_output = f.read()
     with open(stack_trace_file, "r") as f:
-        stack_trace = f.readlines()
+        stack_trace = f.read()
     test_case.test_output = test_output
     test_case.stack_trace = stack_trace
 
 
 def get_test_method(path_manager: PathManager,
                     test_class_name: str,
-                    test_method_name: str,
-                    stack_trace: str):
+                    test_method_name: str):
     buggy_path = path_manager.buggy_path
     test_path = path_manager.test_prefix
     test_file = os.path.join(
@@ -127,13 +132,18 @@ def get_test_method(path_manager: PathManager,
     methods = function_extractor.get_java_methods(code)
     for method in methods:
         if method.name == test_method_name:
-            # location = parse_stack_trace(stack_trace)
-            # if location != -1:
-            #     code_line = code.split("\n")[location-1].strip("\n")
-            #     method.code = method.code.replace(code_line, code_line + " // error occurred here")
             return method
     else:
-        raise ValueError(f"Error: No method named {test_method_name} in {test_file}.")
+        # the test method may be in the father class
+        try:
+            dot_idx = test_class_name.rfind(".")
+            pkg_name = test_class_name[:dot_idx]
+            short_name = test_class_name[dot_idx + 1:]
+            match = re.search(rf"{short_name} extends (\w+)", code)
+            father_class_name = pkg_name + "." + match.group(1)
+            return get_test_method(path_manager, father_class_name, test_method_name)
+        except Exception:
+            raise ValueError(f"Error: No method named {test_method_name} in {test_file}.")
 
 
 def get_modified_methods(path_manager: PathManager):
@@ -144,6 +154,16 @@ def get_modified_methods(path_manager: PathManager):
     buggy_methods = []
 
     for class_name in modified_classes:
+        
+        special_proj = ["IO"]
+        # fix errors in GrowingBugs
+        if path_manager.project == "IO":
+            extra_prefix = src_path.replace("/", ".") + "."
+            class_name = class_name.replace(extra_prefix, "")
+        elif path_manager.project == "Dagger_core":
+            extra_prefix = "core."
+            class_name = class_name.replace(extra_prefix, "")
+        
         buggy_file = os.path.join(buggy_path,
                                   src_path,
                                   class_name.replace(".", "/") + ".java")
@@ -167,63 +187,60 @@ def get_modified_methods(path_manager: PathManager):
             fixed_code = open(fixed_file, "r", errors="ignore").readlines()
 
         function_extractor = JavaMethodExtractor(path_manager.tree_sitter_lib)
-        buggy_methods.extend(function_extractor.get_buggy_methods(buggy_code, fixed_code))
+        methods = function_extractor.get_buggy_methods(buggy_code, fixed_code)
+        for method in methods:
+            method.class_full_name = class_name
+        buggy_methods.extend(methods)
     return buggy_methods
-
-
-def refine_failed_tests(version, project, bugID):
-    project_path = os.path.join("/home/qyh/projects/LLM-Location/AgentFL/DebugResult_d4j140_GPT35", f"d4j{version}-{project}-{bugID}")
-    pickle_file = os.path.join(project_path, "test_failure.pkl")
-    with open(pickle_file, "rb") as f:
-        test_failure = pickle.load(f)
-    
-    check_out_path = os.path.join(project_path, "refine_check_out")
-    check_out(version, project, bugID, check_out_path)
-    buggy_path = os.path.join(check_out_path, "buggy")
-    
-    cmd = f"defects4j export -p dir.src.classes -w {buggy_path}"
-    src_path, err = run_cmd(cmd)
-    
-    cmd = f"defects4j export -p classes.modified -w {buggy_path}"
-    out, err = run_cmd(cmd)
-    modified_classes = out.split("\n")
-    
-    buggy_methods = get_modified_methods(buggy_path, src_path, modified_classes)  # for evaluation
-    test_failure.buggy_methods = buggy_methods
-    
-    with open(pickle_file, "wb") as f:
-        pickle.dump(test_failure, f)
-    
-    run_cmd(f"rm -rf {check_out_path}")
 
 
 def get_properties(path_manager: PathManager):
     """
-    Retrieves properties related to the project using Defects4J.
+    Retrieves properties related to the project.
     """
-    cmd = f"defects4j export -p tests.trigger -w {path_manager.buggy_path}"
-    out, err = run_cmd(cmd)
-    path_manager.failed_test_names = out.split("\n")
+    if os.path.exists(os.path.join(path_manager.bug_path, "properties.json")):
+        with open(os.path.join(path_manager.bug_path, "properties.json"), "r") as f:
+            properties = json.load(f)
+    else:
+        properties = {}
+        
+        # for some project such as Pool we have to compile first
+        cmd = f"{path_manager.bug_exec} compile -w {path_manager.buggy_path}"
+        out, err = run_cmd(cmd)
+        
+        cmd = f"{path_manager.bug_exec} export -p tests.trigger -w {path_manager.buggy_path}"
+        out, err = run_cmd(cmd)
+        properties["failed_test_names"] = out.split("\n")
+        
+        cmd = f"{path_manager.bug_exec} export -p dir.bin.classes -w {path_manager.buggy_path}"
+        out, err = run_cmd(cmd)
+        properties["src_class_prefix"] = out
+        
+        cmd = f"{path_manager.bug_exec} export -p dir.bin.tests -w {path_manager.buggy_path}"
+        out, err = run_cmd(cmd)
+        properties["test_class_prefix"] = out
+
+        cmd = f"{path_manager.bug_exec} export -p dir.src.classes -w {path_manager.buggy_path}"
+        out, err = run_cmd(cmd)
+        properties["src_prefix"] = out
+
+        cmd = f"{path_manager.bug_exec} export -p dir.src.tests -w {path_manager.buggy_path}"
+        out, err = run_cmd(cmd)
+        properties["test_prefix"] = out
+
+        cmd = f"{path_manager.bug_exec} export -p classes.modified -w {path_manager.buggy_path}"
+        out, err = run_cmd(cmd)
+        properties["modified_classes"] = out.split("\n")
     
-    cmd = f"defects4j export -p dir.bin.classes -w {path_manager.buggy_path}"
-    out, err = run_cmd(cmd)
-    path_manager.src_class_prefix = out
+        with open(os.path.join(path_manager.bug_path, "properties.json"), "w") as f:
+            json.dump(properties, f, indent=4)
     
-    cmd = f"defects4j export -p dir.bin.tests -w {path_manager.buggy_path}"
-    out, err = run_cmd(cmd)
-    path_manager.test_class_prefix = out
-
-    cmd = f"defects4j export -p dir.src.classes -w {path_manager.buggy_path}"
-    out, err = run_cmd(cmd)
-    path_manager.src_prefix = out
-
-    cmd = f"defects4j export -p dir.src.tests -w {path_manager.buggy_path}"
-    out, err = run_cmd(cmd)
-    path_manager.test_prefix = out
-
-    cmd = f"defects4j export -p classes.modified -w {path_manager.buggy_path}"
-    out, err = run_cmd(cmd)
-    path_manager.modified_classes = out.split("\n")
+    path_manager.failed_test_names = properties["failed_test_names"]
+    path_manager.src_class_prefix = properties["src_class_prefix"]
+    path_manager.test_class_prefix = properties["test_class_prefix"]
+    path_manager.src_prefix = properties["src_prefix"]
+    path_manager.test_prefix = properties["test_prefix"]
+    path_manager.modified_classes = properties["modified_classes"]
 
 
 def get_failed_tests(path_manager: PathManager) -> TestFailure:
@@ -242,10 +259,16 @@ def get_failed_tests(path_manager: PathManager) -> TestFailure:
     test_classes = {}
     for test_name in path_manager.failed_test_names:
         test_class_name, test_method_name = test_name.split("::")
+        test_case = TestCase(test_name)
+        test_case.test_method = get_test_method(
+            path_manager,
+            test_class_name,
+            test_case.test_method_name,
+        )
         if test_class_name not in test_classes:
-            test_classes[test_class_name] = TestClass(test_class_name, [TestCase(test_name)])
+            test_classes[test_class_name] = TestClass(test_class_name, [test_case])
         else:
-            test_classes[test_class_name].test_cases.append(TestCase(test_name))
+            test_classes[test_class_name].test_cases.append(test_case)
 
     # get modified methods as the buggy methods for evaluation
     path_manager.logger.info("[get test failure object] get modified methods as the buggy methods for evaluation...")
@@ -276,39 +299,6 @@ def merge_classes(class_name: str, covered_classes: List[Dict[str, JavaClass]]) 
         return None
     merged_class.methods = spc_methods
     return merged_class
-
-def parse_sbfl(path_manager: PathManager):
-    """
-    Parse the SBFL result from line level to method level.
-    e.g.:
-        org.jfree.chart.plot$CategoryPlot#CategoryPlot():567;0.2581988897471611
-        org.jfree.chart.plot$CategoryPlot#CategoryPlot():568;0.2581988897471611
-        
-        ==>
-        
-        {
-            "org.jfree.chart.plot$CategoryPlot": (567, 568)
-        }
-    """
-    res = {}
-    with open(path_manager.sbfl_file, "r") as f:
-        line = f.readline() # skip the first line
-        line = f.readline().strip("\n")
-        while line:
-            full_name, method_name, line_num, score = re.split(r"[#:;]", line)
-            temp = full_name.split("$")
-            if len(temp) > 2: # inner class
-                full_name = temp[0] + "$" + temp[1]
-            
-            if score == "0.0":
-                break
-
-            try:
-                res[full_name].append(int(line_num))
-            except:
-                res[full_name] = [int(line_num)]
-            line = f.readline().strip("\n")
-    return res
 
 def filter_classes_Ochiai(project, bugID, extracted_classes: List[JavaClass]) -> List[JavaClass]:
     """
@@ -405,16 +395,10 @@ def run_all_tests(path_manager: PathManager, test_failure: TestFailure):
         path_manager.logger.info(f"[run all tests] test class: {path_manager.project}-{path_manager.bug_id} {test_class.name}")
         for test_case in test_class.test_cases:
             path_manager.logger.info(f"[run all tests]   \u14AA test case: {path_manager.project}-{path_manager.bug_id} {test_case.name}")
-            test_cache_dir = os.path.join(path_manager.cache_path, test_class.name, test_case.name)
+            test_cache_dir = os.path.join(path_manager.bug_path, test_class.name, test_case.name)
             os.makedirs(test_cache_dir, exist_ok=True)
             path_manager.test_cache_dir = test_cache_dir
             run_test_with_instrument(test_case, path_manager)
-            test_case.test_method = get_test_method(
-                path_manager,
-                test_class.name,
-                test_case.test_method_name,
-                test_case.stack_trace
-            )
 
 def get_class_name_from_msg(tmp_path, test_class):
     """
@@ -463,5 +447,4 @@ def test():
 
 
 if __name__ == "__main__":
-    # test()
-    refine_failed_tests("1.4.0", "Mockito", "30")
+    test()
