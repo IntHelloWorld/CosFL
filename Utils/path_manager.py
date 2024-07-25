@@ -125,7 +125,6 @@ class PathManager():
             f"{args.version}",
             args.project,
             f"{args.project}-{args.bugID}")
-        self.cache_path = os.path.join(self.res_path, "cache")
         self.res_file = os.path.join(self.res_path, "result.json")
         self.projects_path = os.path.join(self.root_path, "Projects")
         self.bug_path = os.path.join(self.projects_path, args.project, args.bugID)
@@ -148,8 +147,7 @@ class PathManager():
         for path in [
             self.output_path,
             self.res_path,
-            self.bug_path,
-            self.cache_path]:
+            self.bug_path]:
             if not os.path.exists(path):
                 os.makedirs(path)
         
@@ -157,12 +155,6 @@ class PathManager():
         log_config['handlers']['file']['filename'] = os.path.join(self.res_path, f"{int(time())}.log")
         logging.config.dictConfig(log_config)
         self.logger = logging.getLogger("default")
-    
-    def get_call_graph_file(self, test_name):
-        return os.path.join(self.cache_path,
-                            test_name.split("::")[0],
-                            test_name,
-                            "call_graph.jsonl")
     
     def get_class_file(self, class_name):
         class_file = os.path.join(self.buggy_path,

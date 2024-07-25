@@ -19,13 +19,13 @@ class ChatReranker:
         self.path_manager = path_manager
 
         query_file = os.path.join(
-            self.path_manager.cache_path,
+            self.path_manager.res_path,
             "query.txt"
         )
         with open(query_file, "r") as f:
             self.queries_text = f.read()
         
-        self.rerank_cache_dir = os.path.join(self.path_manager.cache_path, "rerank")
+        self.rerank_cache_dir = os.path.join(self.path_manager.res_path, "rerank")
         if not os.path.exists(self.rerank_cache_dir):
             os.mkdir(self.rerank_cache_dir)
 

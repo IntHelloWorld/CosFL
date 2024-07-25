@@ -76,7 +76,7 @@ def main():
     test_analyzer = TestAnalyzer(path_manager)
     test_analyzer.analyze(test_failure_obj)
 
-    nodes_file = os.path.join(path_manager.cache_path, "nodes.pkl")
+    nodes_file = os.path.join(path_manager.bug_path, "nodes.pkl")
     if os.path.exists(nodes_file):
         # ----------------------------------------
         #      Load Cached Retrieval Result
