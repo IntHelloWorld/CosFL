@@ -54,9 +54,6 @@ def run_one_bug(config: str, version: str, project: str, bugID: int, clear: bool
     path_manager.logger.info("[load data] start...")
     index_builder = ProjectIndexBuilder(path_manager)
     _ = index_builder.build_summary(all_methods=True)
-
-    shutil.rmtree(path_manager.buggy_path)
-    shutil.rmtree(path_manager.fixed_path)
     
     if clear:
         shutil.rmtree(os.path.join(path_manager.bug_path, "buggy"))
