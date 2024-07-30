@@ -2,6 +2,8 @@ import os
 import re
 import subprocess as sp
 
+import chardet
+
 
 def run_cmd(cmd: str):
     print("-" * 50)
@@ -34,3 +36,10 @@ def clean_doc(doc: str) -> str:
             if not line.startswith("@author"):
                 new_doc_lines.append(line)
     return " ".join(new_doc_lines)
+
+def auto_read(file):
+    with open(file, 'rb') as f:
+        content = f.read()
+    detected_encoding = chardet.detect(content)['encoding']
+    text = content.decode(detected_encoding)
+    return text

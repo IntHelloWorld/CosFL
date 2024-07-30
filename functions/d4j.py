@@ -21,7 +21,7 @@ from functions.line_parser import (
 )
 from functions.MethodExtractor.java_method_extractor import JavaMethodExtractor
 from functions.my_types import JMethod, TestCase, TestClass, TestFailure
-from functions.utils import clean_doc, git_clean, run_cmd
+from functions.utils import auto_read, clean_doc, git_clean, run_cmd
 from Utils.context_manager import WorkDir
 from Utils.path_manager import PathManager
 
@@ -122,14 +122,12 @@ def get_test_method(path_manager: PathManager,
 
     if not os.path.exists(test_file):
         raise FileNotFoundError(f"Error: {test_file} not exists.")
-    try:
-        code = open(test_file, "r").read()
-    except UnicodeDecodeError:
-        print(f"Warning: UnicodeDecodeError for {test_file}.")
-        code = open(test_file, "r", errors="ignore").readlines()
+    
+    code = auto_read(test_file)
 
     function_extractor = JavaMethodExtractor(path_manager.tree_sitter_lib)
     methods = function_extractor.get_java_methods(code)
+    assert len(methods) > 0, f"Error: No method found in {test_file}."
     for method in methods:
         if method.name == test_method_name:
             return method
@@ -139,9 +137,13 @@ def get_test_method(path_manager: PathManager,
             dot_idx = test_class_name.rfind(".")
             pkg_name = test_class_name[:dot_idx]
             short_name = test_class_name[dot_idx + 1:]
-            match = re.search(rf"{short_name} extends (\w+)", code)
-            father_class_name = pkg_name + "." + match.group(1)
-            return get_test_method(path_manager, father_class_name, test_method_name)
+            match_cls = re.search(rf"{short_name}\s+extends\s+(\w+)", code)
+            f_class_name = match_cls.group(1)
+            match_pkg = re.search(rf"import\s+([\w.]+).{f_class_name};", code)
+            f_pkg_name = match_pkg.group(1) if match_pkg else pkg_name
+            f_class_full_name = f_pkg_name + "." + f_class_name
+            
+            return get_test_method(path_manager, f_class_full_name, test_method_name)
         except Exception:
             raise ValueError(f"Error: No method named {test_method_name} in {test_file}.")
 
@@ -155,7 +157,6 @@ def get_modified_methods(path_manager: PathManager):
 
     for class_name in modified_classes:
         
-        special_proj = ["IO"]
         # fix errors in GrowingBugs
         if path_manager.project == "IO":
             extra_prefix = src_path.replace("/", ".") + "."
@@ -175,16 +176,9 @@ def get_modified_methods(path_manager: PathManager):
         if not (os.path.exists(fixed_file) and os.path.exists(buggy_file)):
             raise FileNotFoundError(f"Warning: {fixed_file} or {buggy_file} not exists.")
         
-        try:
-            buggy_code = open(buggy_file, "r").readlines()
-        except UnicodeDecodeError:
-            print(f"Warning: UnicodeDecodeError for {buggy_file}.")
-            buggy_code = open(buggy_file, "r", errors="ignore").readlines()
-        try:
-            fixed_code = open(fixed_file, "r").readlines()
-        except UnicodeDecodeError:
-            print(f"Warning: UnicodeDecodeError for {fixed_file}.")
-            fixed_code = open(fixed_file, "r", errors="ignore").readlines()
+        buggy_code = auto_read(buggy_file)
+        
+        fixed_code = auto_read(fixed_file)
 
         function_extractor = JavaMethodExtractor(path_manager.tree_sitter_lib)
         methods = function_extractor.get_buggy_methods(buggy_code, fixed_code)

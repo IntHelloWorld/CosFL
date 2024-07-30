@@ -175,12 +175,16 @@ class JavaMethodExtractor:
         dfs(tree.root_node)
         return methods
 
-    def get_buggy_methods(self, buggy_file: List[str], fixed_file: List[str]):
-        methods = self.get_java_methods("".join(buggy_file))
-        diff = list(unified_diff(buggy_file, fixed_file,
+    def get_buggy_methods(self, buggy_code: str, fixed_code: str):
+        buggy_lines = buggy_code.split("\n")
+        fixed_lines = fixed_code.split("\n")
+        methods = self.get_java_methods(buggy_code)
+        assert len(methods) > 0, "no method found in buggy file"
+        diff = list(unified_diff(buggy_lines, fixed_lines,
                     fromfile='text1',
                     tofile='text2',
                     n=0))
+        diff = [line.rstrip("\n")+"\n" for line in diff]
         assert len(diff) != 0, "buggy file and fixed file are the same"
         hunks = PatchSet("".join(diff))[0]
         changed_points_b = set()

@@ -113,7 +113,7 @@ def run_all_bugs(config_name: str):
                     raise Exception(f"Error in running d4j{version}-{proj}-{bug_id}")
                 finally:
                     with open(res_file, "w") as f:
-                        json.dump(cover_res, f, indent=4)
+                        json.dump(cover_res, f, indent=4, separators=(',', ': '))
 
 if __name__ == "__main__":
     config_name = "BugInfoCollection"
