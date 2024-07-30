@@ -30,7 +30,7 @@ class ProjectIndexBuilder():
         self.path_manager = path_manager
         self.doc_store_file = os.path.join(path_manager.stores_dir, DEFAULT_PERSIST_FNAME)
         self.vector_store_dir = os.path.join(path_manager.stores_dir, "chroma")
-        self.bug_vector_store_dir = os.path.join(path_manager.cache_path, "chroma")
+        self.bug_vector_store_dir = os.path.join(path_manager.res_path, "chroma")
         
         src_path = os.path.join(path_manager.buggy_path, path_manager.src_prefix)
         if not os.path.exists(src_path):
@@ -40,7 +40,7 @@ class ProjectIndexBuilder():
 
     def _get_all_loaded_classes(self):
         class_names = set()
-        for path in Path(self.path_manager.cache_path).rglob("*"):
+        for path in Path(self.path_manager.bug_path).rglob("*"):
             if path.name == "load.log":
                 with open(path, "r") as f:
                     for line in f.readlines():
