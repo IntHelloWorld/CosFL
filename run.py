@@ -3,16 +3,14 @@ import os
 import pickle
 import shutil
 import sys
-
-from llama_index.core.storage.docstore import SimpleDocumentStore
-from llama_index.postprocessor.jinaai_rerank import JinaRerank
+from typing import List
 
 from Evaluation.evaluate import evaluate
 from functions.d4j import check_out, get_failed_tests, get_properties, run_all_tests
 from functions.sbfl import parse_sbfl
 from preprocess.index_builder import ProjectIndexBuilder
-from Rerank.reranker import ChatReranker
-from TestAnalysis.analyzer import TestAnalyzer
+from Query.query import QueryGenerator
+from Rerank.reranker import Reranker
 from Utils.model import set_models
 from Utils.path_manager import PathManager
 
@@ -29,8 +27,9 @@ def main():
                         help="Name of project, your debug result will be generated in DebugResult/d4jversion_project_bugID")
     parser.add_argument('--bugID', type=int, default=4,
                         help="Prompt of software")
-    parser.add_argument('--clear', type=bool, default=True,
-                        help="If clear the checkout project")
+    parser.add_argument('--subproj', type=str, required=False, default="",
+                        help="The subproject of the project")
+    
     args = parser.parse_args()
 
     # ----------------------------------------
@@ -52,6 +51,36 @@ def main():
     # get bug specific information
     path_manager.logger.info("[get bug properties] start...")
     get_properties(path_manager)
+
+
+    # ----------------------------------------
+    #          Set Models
+    # ----------------------------------------
+    
+    set_models(path_manager)
+    
+    # ----------------------------------------
+    #          Check Mode
+    # ----------------------------------------
+    
+    if path_manager.mode == "debug":
+        run_debug(path_manager)
+    elif path_manager.mode == "embed":
+        run_embed(path_manager)
+    elif path_manager.mode == "summary":
+        run_summary(path_manager)
+    elif path_manager.mode == "query":
+        run_query(path_manager)
+    else:
+        raise ValueError("Invalid mode")
+    
+    if path_manager.clear:
+        shutil.rmtree(path_manager.proj_tmp_path, ignore_errors=True)
+
+
+def run_query(path_manager: PathManager):
+    if path_manager.query_type != "normal":
+        raise ValueError("Invalid mode")
     
     # get test failure object
     path_manager.logger.info("[get test failure object] start...")
@@ -60,36 +89,75 @@ def main():
     # run all tests
     path_manager.logger.info("[run all tests] start...")
     run_all_tests(path_manager, test_failure_obj)
-
-
-    # ----------------------------------------
-    #          Set Models
-    # ----------------------------------------
     
-    set_models(path_manager)
+    path_manager.logger.info("[Query Generation] start...")
+    query_generator = QueryGenerator(path_manager)
+    _ = query_generator.generate(test_failure_obj)
 
+
+def run_embed(path_manager: PathManager):
+    path_manager.logger.info("[load data] start...")
+    
     # ----------------------------------------
-    #          Test Analysis
+    #          SBFL results
     # ----------------------------------------
 
-    path_manager.logger.info("[Test Analysis] start...")
-    test_analyzer = TestAnalyzer(path_manager)
-    test_analyzer.analyze(test_failure_obj)
+    sbfl_res = None
+    if not path_manager.all_methods:
+        sbfl_res = parse_sbfl(path_manager.sbfl_file)
+    
+    index_builder = ProjectIndexBuilder(path_manager)
+    _ = index_builder.build_embeddings([sbfl_res])
 
-    nodes_file = os.path.join(path_manager.bug_path, "nodes.pkl")
-    if os.path.exists(nodes_file):
-        # ----------------------------------------
-        #      Load Cached Retrieval Result
-        # ----------------------------------------
-        
-        with open(nodes_file, "rb") as f:
-            nodes_list = pickle.load(f)
+
+def run_summary(path_manager: PathManager):
+    path_manager.logger.info("[load data] start...")
+    index_builder = ProjectIndexBuilder(path_manager)
+    _ = index_builder.build_summary(all_methods=True)
+
+
+def run_debug(path_manager: PathManager):
+    
+    # get test failure object
+    path_manager.logger.info("[get test failure object] start...")
+    test_failure_obj = get_failed_tests(path_manager)
+    
+    # run all tests
+    path_manager.logger.info("[run all tests] start...")
+    run_all_tests(path_manager, test_failure_obj)
+    
+    # ----------------------------------------
+    #          Query Generation
+    # ----------------------------------------
+
+    path_manager.logger.info("[Query Generation] start...")
+    query_generator = QueryGenerator(path_manager)
+    if path_manager.query_type == "no_query":
+        queries: List[str] = query_generator.generate_no_query(test_failure_obj)
+    elif path_manager.query_type == "one_query":
+        queries: List[str] = query_generator.generate_one_query(test_failure_obj)
+    elif path_manager.query_type == "normal":
+        queries: List[str] = query_generator.generate(test_failure_obj)
+    elif path_manager.query_type == "causes":
+        queries: List[str] = query_generator.generate_causes(test_failure_obj)
     else:
+        raise ValueError(f"Invalid query type {path_manager.query_type}")
+    
+    # ----------------------------------------
+    #             Retrieval
+    # ----------------------------------------
+
+    try:
+        with open(path_manager.retrieved_nodes_file, "rb") as f:
+            retrieved_nodes_list = pickle.load(f)
+    except FileNotFoundError:
         # ----------------------------------------
         #          SBFL results
         # ----------------------------------------
 
-        sbfl_res = parse_sbfl(path_manager.sbfl_file)
+        sbfl_res = None
+        if path_manager.sbfl_formula:
+            sbfl_res = parse_sbfl(path_manager.sbfl_file)
 
         # ----------------------------------------
         #          Load Index
@@ -97,7 +165,7 @@ def main():
 
         path_manager.logger.info("[load data] start...")
         index_builder = ProjectIndexBuilder(path_manager)
-        index = index_builder.build_index(sbfl_res)
+        index = index_builder.build_index([sbfl_res])
         
         # ----------------------------------------
         #          Retrieve
@@ -105,57 +173,26 @@ def main():
         
         path_manager.logger.info("[Retrieve] start...")
         retriever = index.as_retriever(similarity_top_k=path_manager.retrieve_top_n)
-        nodes_list = []
-        for query in test_failure_obj.queries:
+        retrieved_nodes_list = []
+        for query in queries:
             nodes = retriever.retrieve(query)
-            nodes_list.append(nodes)
-        with open(nodes_file, 'wb') as f:
-            pickle.dump(nodes_list, f)
+            retrieved_nodes_list.append(nodes)
+        with open(path_manager.retrieved_nodes_file, 'wb') as f:
+            pickle.dump(retrieved_nodes_list, f)
 
     # ----------------------------------------
     #          Rerank
     # ----------------------------------------
     
     path_manager.logger.info("[Rerank] start...")
-
-    path_manager.logger.info("[Rerank] run embedding-based rerank...")
-    jina_rerank = JinaRerank(
-        api_key=path_manager.rerank_api_key,
-        model=path_manager.rerank_model,
-        top_n=path_manager.rerank_top_n)
-    
-    chat_rerank_dict = {}
-    extra_dict = {}
-    for i, nodes in enumerate(nodes_list):
-        reranked_nodes = jina_rerank.postprocess_nodes(
-            nodes,
-            query_str=test_failure_obj.queries[i]
-        )
-        for n in reranked_nodes[:path_manager.chat_rerank_top_n]:
-            if n.id_ not in chat_rerank_dict:
-                chat_rerank_dict[n.id_] = n
-        for n in reranked_nodes[path_manager.chat_rerank_top_n:]:
-            if n.id_ not in chat_rerank_dict:
-                if n.id_ not in extra_dict:
-                    extra_dict[n.id_] = n
-    
-    path_manager.logger.info("[Rerank] run chat-based rerank...")
-    reranker = ChatReranker(path_manager)
-    reranked_nodes = reranker.rerank(list(chat_rerank_dict.values()))
-    extra_nodes = list(extra_dict.values())
-    extra_nodes.sort(key=lambda x: x.score, reverse=True)
-    
-    result_nodes = reranked_nodes + extra_nodes
+    reranker = Reranker(path_manager)
+    result_nodes, reranked_nodes_list = reranker.rerank(retrieved_nodes_list, queries)
 
     # ----------------------------------------
     #          Evaluate
     # ----------------------------------------
     
-    evaluate(path_manager, result_nodes, test_failure_obj)
-    
-    if args.clear:
-        shutil.rmtree(path_manager.buggy_path)
-        shutil.rmtree(path_manager.fixed_path)
+    evaluate(path_manager, result_nodes, reranked_nodes_list, test_failure_obj)
 
 if __name__ == "__main__":
     main()

@@ -27,13 +27,13 @@ def compare(test_failure_obj: TestFailure, all_sbfl_res):
                         return True
         return False
 
-def run_one_bug(config: str, version: str, project: str, bugID: int, clear: bool = True, sub_proj: str = ""):
+def run_one_bug(config: str, version: str, project: str, bugID: int, clear: bool = True, subproj: str = ""):
     args = Namespace(
         config=config,
         version=version,
         project=project,
         bugID=str(bugID),
-        sub_proj=sub_proj
+        subproj=subproj
     )
 
     # ----------------------------------------
@@ -95,7 +95,7 @@ def run_all_bugs(config_name: str):
                 cover_res[proj] = {"covered": [], "uncovered": []}
             bugIDs = ALL_BUGS[version][proj][0]
             deprecatedIDs = ALL_BUGS[version][proj][1]
-            sub_proj = ALL_BUGS[version][proj][2] if version == "GrowingBugs" else ""
+            subproj = ALL_BUGS[version][proj][2] if version == "GrowingBugs" else ""
             for bug_id in bugIDs:
                 if bug_id in deprecatedIDs:
                     continue
@@ -104,7 +104,7 @@ def run_all_bugs(config_name: str):
                     continue
                 
                 try:
-                    if_covered = run_one_bug(config_name, version, proj, bug_id, True, sub_proj)
+                    if_covered = run_one_bug(config_name, version, proj, bug_id, True, subproj)
                     if if_covered:
                         cover_res[proj]["covered"].append(bug_id)
                     else:

@@ -48,7 +48,6 @@ class TestCase():
     test_method: Optional[JMethod] = None
     test_output: Optional[str] = None
     stack_trace: Optional[str] = None
-    queries: Optional[List[str]] = None
     
     def __str__(self) -> str:
         return self.name
@@ -71,7 +70,6 @@ class TestFailure():
     bug_ID: int
     test_classes: List[TestClass]
     buggy_methods: Optional[List[JMethod]] = None
-    queries: Optional[List[str]] = None
 
 
 

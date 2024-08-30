@@ -4,7 +4,14 @@ scikit-learn
 langchain
 llama-index
 llama-index-postprocessor-jinaai-rerank
+llama-index-postprocessor-cohere-rerank
+llama-index-postprocessor-voyageai-rerank
 llama-index-embeddings-jinaai
+llama-index-embeddings-voyageai
+llama-index-embeddings-cohere
+llama-index-llms-cohere
+llama-index-llms-dashscope
+llama-index-llms-deepinfra
 chromadb
 llama-index-vector-stores-chroma
 more_itertools

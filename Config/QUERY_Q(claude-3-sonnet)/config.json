@@ -1,0 +1,15 @@
+{
+    "dependencies":{
+        "agent_lib": "/home/qyh/projects/GarFL/classtracer/target/classtracer-1.0.jar",
+        "D4J_exec": "/home/qyh/DATASET/defects4j-2.0.1/framework/bin/defects4j",
+        "GB_exec": "/home/qyh/DATASET/GrowingBugRepository/framework/bin/defects4j"
+    },
+    "reason": {
+        "reasoning_series": "anthropic",
+        "reasoning_model": "claude-3-sonnet",
+        "reasoning_api_key": "sk-BzzgCowQ83BnFN6k486c0aCd525b4dA8A29746081c5f7665",
+        "reasoning_base_url": "https://api.gptapi.us/v1/messages",
+        "reasoning_max_tokens": 6000,
+        "reasoning_rate_limit": 10
+    }
+}

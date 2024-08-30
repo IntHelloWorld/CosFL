@@ -6,7 +6,7 @@ rerank_template = ChatPromptTemplate.from_messages(
         (
             "user",
             "One or more test cases have failed due to a bug in the codebase.\n"
-            "The possible root causes of the bug:\n```text\n"
+            "The possible root causes of the bug are:\n```text\n"
             "{causes_ph}\n```\n\n"
             "One of the retrieved suspicious methods in the codebase:\n```java\n"
             "{method_code_ph}\n```\n\n"

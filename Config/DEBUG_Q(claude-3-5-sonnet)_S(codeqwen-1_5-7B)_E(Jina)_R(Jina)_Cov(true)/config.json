@@ -1,0 +1,46 @@
+{
+    "dependencies":{
+        "agent_lib": "/home/qyh/projects/GarFL/classtracer/target/classtracer-1.0.jar",
+        "D4J_exec": "/home/qyh/DATASET/defects4j-2.0.1/framework/bin/defects4j",
+        "GB_exec": "/home/qyh/DATASET/GrowingBugRepository/framework/bin/defects4j"
+    },
+    "summary":{
+        "summary_series": "lmstudio",
+        "summary_model": "codeqwen-1_5-7B",
+        "summary_api_key": "",
+        "summary_base_url": "http://localhost:1234/v1",
+        "summary_workers": 1
+    },
+    "embed": {
+        "embed_series": "jina",
+        "embed_model": "jina-embeddings-v2-base-en",
+        "embed_api_key": "jina_28bca4e341664d619f580aefa0115141D_xM1gOcqRMzwtWnIkW3H2itrzpk",
+        "embed_batch_size": 64,
+        "embed_base_url": "",
+        "embed_text": "summary"
+    },
+    "reason": {
+        "reasoning_series": "anthropic",
+        "reasoning_model": "claude-3-5-sonnet",
+        "reasoning_api_key": "sk-BzzgCowQ83BnFN6k486c0aCd525b4dA8A29746081c5f7665",
+        "reasoning_base_url": "https://api.gptapi.us/v1/messages",
+        "reasoning_max_tokens": 6000,
+        "reasoning_rate_limit": 10
+    },
+    "rerank": {
+        "rerank_series": "jina",
+        "rerank_model": "jina-reranker-v2-base-multilingual",
+        "rerank_api_key": "jina_28bca4e341664d619f580aefa0115141D_xM1gOcqRMzwtWnIkW3H2itrzpk",
+        "rerank_base_url": "",
+        "use_chat_rerank": false
+    },
+    "hyper": {
+        "sbfl_formula": "ochiai",
+        "retrieve_top_n": 50,
+        "rerank_top_n": 50,
+        "chat_rerank_top_n": 3
+    },
+    "mode": "debug",
+    "query_type": "normal",
+    "clear": true
+}

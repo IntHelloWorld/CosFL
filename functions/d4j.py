@@ -11,6 +11,8 @@ from typing import Dict, List, Tuple
 from numpy import full
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from llama_index.core.storage.docstore.types import DEFAULT_PERSIST_FNAME
+
 from functions.line_parser import (
     JavaClass,
     JavaMethod,
@@ -18,6 +20,7 @@ from functions.line_parser import (
     parse_stack_trace,
     parse_test_report,
     parse_test_run_log,
+    read_text,
 )
 from functions.MethodExtractor.java_method_extractor import JavaMethodExtractor
 from functions.my_types import JMethod, TestCase, TestClass, TestFailure
@@ -27,22 +30,23 @@ from Utils.path_manager import PathManager
 
 filepath = os.path.dirname(__file__)
 TREE_SITTER_LIB_PATH = os.path.join(
-    filepath, "methodExtractor/myparser/my-languages.so")
+    filepath, "methodExtractor/my-languages.so")
 root = os.path.dirname(filepath)
 directory = os.path.join(root, "DebugResult")
-AGENT_JAR = os.path.join(root, "functions/classtracer/target/classtracer-1.0.jar")
 
 
 def check_out(path_manager: PathManager):
-    with WorkDir(path_manager.bug_path):
+    if not path_manager.all_methods and os.path.exists(path_manager.method_nodes_file):
+        return
+    with WorkDir(path_manager.proj_tmp_path):
         if not os.path.exists(path_manager.buggy_path):
-            if path_manager.sub_proj:
-                run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}b -w buggy -s {path_manager.sub_proj}")
+            if path_manager.subproj:
+                run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}b -w buggy -s {path_manager.subproj}")
             else:
                 run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}b -w buggy")
         if not os.path.exists(path_manager.fixed_path):
-            if path_manager.sub_proj:
-                run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}f -w fixed -s {path_manager.sub_proj}")
+            if path_manager.subproj:
+                run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}f -w fixed -s {path_manager.subproj}")
             else:
                 run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}f -w fixed")
 
@@ -101,12 +105,8 @@ def run_test_with_instrument(test_case: TestCase, path_manager: PathManager):
             f.writelines(stack_trace)
         assert all(os.path.exists(f) for f in all_files)
     
-    with open(test_output_file, "r") as f:
-        test_output = f.read()
-    with open(stack_trace_file, "r") as f:
-        stack_trace = f.read()
-    test_case.test_output = test_output
-    test_case.stack_trace = stack_trace
+    test_case.test_output = read_text(test_output_file, max_lines=100)
+    test_case.stack_trace = read_text(stack_trace_file, max_lines=50)
 
 
 def get_test_method(path_manager: PathManager,
@@ -125,7 +125,7 @@ def get_test_method(path_manager: PathManager,
     
     code = auto_read(test_file)
 
-    function_extractor = JavaMethodExtractor(path_manager.tree_sitter_lib)
+    function_extractor = JavaMethodExtractor(TREE_SITTER_LIB_PATH)
     methods = function_extractor.get_java_methods(code)
     assert len(methods) > 0, f"Error: No method found in {test_file}."
     for method in methods:
@@ -180,10 +180,11 @@ def get_modified_methods(path_manager: PathManager):
         
         fixed_code = auto_read(fixed_file)
 
-        function_extractor = JavaMethodExtractor(path_manager.tree_sitter_lib)
+        function_extractor = JavaMethodExtractor(TREE_SITTER_LIB_PATH)
         methods = function_extractor.get_buggy_methods(buggy_code, fixed_code)
         for method in methods:
             method.class_full_name = class_name
+            method.text = method.text.replace("\r", "")
         buggy_methods.extend(methods)
     return buggy_methods
 

@@ -80,6 +80,15 @@ def parse_test_report(lines):
     return output, report
 
 
+def read_text(file_path: str, max_lines: int = 50) -> str:
+    with open(file_path, "r") as f:
+        lines = f.readlines()
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines.append("// omitting the rest ...")
+    return "".join(lines)
+
+
 def parse_stack_trace(lines):
     """parse the bug error stack trace, find the location of the error assert statement, e.g.:
 

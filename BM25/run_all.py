@@ -1,25 +1,38 @@
+import os
 import subprocess
+import sys
 
-from projects import D4J_ALL
+from projects import ALL_BUGS
 
+root = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(root)
 
-def run_project(all_bugs):
-    for version in all_bugs:
-        for proj in all_bugs[version]:
-            for bug_id in range(all_bugs[version][proj]["begin"], all_bugs[version][proj]["end"] + 1):
-                if bug_id in all_bugs[version][proj]["deprecate"]:
+def run_all_bugs(config_name: str, clear: bool = True):
+    for version in ALL_BUGS:
+        for proj in ALL_BUGS[version]:
+            bugIDs = ALL_BUGS[version][proj][0]
+            deprecatedIDs = ALL_BUGS[version][proj][1]
+            subproj = ALL_BUGS[version][proj][2] if version == "GrowingBugs" else ""
+            for bug_id in bugIDs:
+                res_path = f"DebugResult/{config_name}/{version}/{proj}/{proj}-{bug_id}"
+                res_path = os.path.join(root, res_path)
+                res_file = os.path.join(res_path, "result.json")
+                if bug_id in deprecatedIDs:
                     continue
-                cmd = f"/home/qyh/micromamba/envs/LLM-py39/bin/python3 run.py --config LMStudio+jina+openai --version {version} --project {proj} --bugID {bug_id}"
-                result = subprocess.run(cmd.split(" "))
-                if result.returncode != 0:
-                    return
+                
+                if os.path.exists(res_file):
+                    print(f"{version}-{proj}-{bug_id} already finished, skip!")
+                    continue
+                
+                run_one_bug(config_name, version, proj, bug_id, clear, subproj)
 
-def run_single():
-    cmd = f"/home/qyh/micromamba/envs/LLM-py39/bin/python3 run.py --config LMStudio+jina+openai --version 2.0.1 --project Chart --bugID 15"
+def run_one_bug(config_name, version, proj, bug_id, clear, subproj):
+    cmd = f"python BM25/run.py --config {config_name} --version {version} --project {proj} --bugID {bug_id} --clear {clear} --subproj {subproj}"
     result = subprocess.run(cmd.split(" "))
     if result.returncode != 0:
-        return
+        raise Exception(f"Failed to run {version}-{proj}-{bug_id}")
 
 if __name__ == "__main__":
-    run_project(D4J_ALL)
-    # run_single()
+    config_name = "BM25"
+    # run_one_bug(config_name, "d4j1.4.0", "Chart", 1, True, "")
+    run_all_bugs(config_name, True)

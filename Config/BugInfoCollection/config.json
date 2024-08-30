@@ -1,6 +1,5 @@
 {
     "dependencies":{
-        "tree_sitter_lib": "/home/qyh/projects/FLbot/functions/MethodExtractor/my-languages.so",
         "agent_lib": "/home/qyh/projects/GarFL/classtracer/target/classtracer-1.0.jar",
         "D4J_exec": "/home/qyh/DATASET/defects4j-2.0.1/framework/bin/defects4j",
         "GB_exec": "/home/qyh/DATASET/GrowingBugRepository/framework/bin/defects4j"
