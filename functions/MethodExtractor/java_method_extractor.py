@@ -14,11 +14,26 @@ from functions.my_types import JMethod
 CLASS_DECLARATION_TYPES = ["class_declaration", "interface_declaration", "enum_declaration", "enum_body_declaration"]
 CLASS_BODY_TYPES = ["class_body", "interface_body", "enum_body"]
 METHOD_DECLARATION_TYPES = ["method_declaration", "constructor_declaration"]
+LANGUAGE = "java"
 
 class JavaMethodExtractor:
     def __init__(self, lib_path: str) -> None:
-        self.parser = Parser()
-        self.parser.set_language(Language(Path(lib_path), "java"))
+        try:
+            import tree_sitter_languages  # pants: no-infer-dep
+
+            self.parser = tree_sitter_languages.get_parser(LANGUAGE)
+        except ImportError:
+            raise ImportError(
+                "Please install tree_sitter_languages to use JavaClassSplitter."
+                "Or pass in a parser object."
+            )
+        except Exception:
+            print(
+                f"Could not get parser for language {LANGUAGE}. Check "
+                "https://github.com/grantjenks/py-tree-sitter-languages#license "
+                "for a list of valid languages."
+            )
+            raise
 
     def get_java_methods(self, code: str, only_class: str = None) -> List[JMethod]:
         """
@@ -49,7 +64,7 @@ class JavaMethodExtractor:
                         arg = bytes.decode(type_identifier.named_children[-1].text)
                     else:
                         arg = bytes.decode(type_identifier.text)
-                    
+
                     # solve array parameter, e.g., "String" -> "String[]"
                     dimension = param.child_by_field_name("dimensions")
                     if dimension is not None:
@@ -60,7 +75,7 @@ class JavaMethodExtractor:
                         arg = arg.split("<")[0]
                     type_list.append(arg)
             return type_list
-        
+
         def get_return_type(method_declaration):
             c = method_declaration.child_by_field_name("type")
             if c is None:  # constructor
@@ -109,7 +124,7 @@ class JavaMethodExtractor:
                              method_text,
                              method_location)
             return method
-        
+
         def get_ancestor_class_body(class_body_node):
             node = class_body_node.parent
             while True:
@@ -119,12 +134,12 @@ class JavaMethodExtractor:
                 if node is None:
                     break
             return None
-        
+
         def is_declared_class(class_body):
             if class_body.parent.type in CLASS_DECLARATION_TYPES:
                 return True
             return False
-        
+
         def get_class_name_for_class_body(class_body):
             if is_declared_class(class_body):  # declared class
                 classes = []

@@ -6,7 +6,6 @@ import chardet
 
 
 def run_cmd(cmd: str):
-    print("-" * 50)
     print(f"run command: {cmd}")
     p = sp.Popen(cmd.split(" "), stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE)
     output, err = p.communicate()

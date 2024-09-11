@@ -78,24 +78,27 @@ def run_single_test(test_case: TestCase, path_manager: PathManager):
     return test_output, stack_trace
 
 def run_test_with_instrument(test_case: TestCase, path_manager: PathManager):
-    loaded_classes_file = os.path.join(path_manager.test_cache_dir, "load.log")
-    inst_methods_file = os.path.join(path_manager.test_cache_dir, "inst.log")
-    run_methods_file = os.path.join(path_manager.test_cache_dir, "run.log")
+    loaded_classes_file = os.path.join(path_manager.test_cache_dir, "loaded_classes.txt")
+    calltrace_file = os.path.join(path_manager.test_cache_dir, "calltrace.txt")
     test_output_file = os.path.join(path_manager.test_cache_dir, "test_output.txt")
     stack_trace_file = os.path.join(path_manager.test_cache_dir, "stack_trace.txt")
-    all_files = [loaded_classes_file, inst_methods_file, run_methods_file, test_output_file, stack_trace_file]
-    class_path = os.path.join(path_manager.buggy_path, path_manager.src_class_prefix)
+    all_files = [loaded_classes_file, calltrace_file, test_output_file, stack_trace_file]
+    src_class_path = os.path.join(path_manager.buggy_path, path_manager.src_class_prefix)
+    class_path = os.path.dirname(src_class_path)
 
     if (all(os.path.exists(f) for f in all_files)):
-        path_manager.logger.info("[run all tests]     instrumentation already done, skip!")
+        path_manager.logger.info("instrumentation already done, skip!")
     else:
         shutil.rmtree(path_manager.test_cache_dir, ignore_errors=True)
         os.makedirs(path_manager.test_cache_dir, exist_ok=True)
         git_clean(path_manager.buggy_path)
-        cmd = f"{path_manager.bug_exec} test -n -w {path_manager.buggy_path} "\
+        cmd = f"{path_manager.bug_exec} test -n "\
             f"-t {test_case.name} "\
-            f"-a -Djvmargs=-javaagent:{path_manager.agent_lib}=outputDir={path_manager.test_cache_dir},classesPath={class_path}"
-        run_cmd(cmd)
+            f"-a -Djvmargs=-javaagent:{path_manager.agent_lib}=classesPath={class_path}"
+        with WorkDir(path_manager.buggy_path):
+            run_cmd(cmd)
+            shutil.copy(f"{path_manager.buggy_path}/calltrace.txt", path_manager.test_cache_dir)
+            shutil.copy(f"{path_manager.buggy_path}/loaded_classes.txt", path_manager.test_cache_dir)
         with open(f"{path_manager.buggy_path}/failing_tests", "r") as f:
             test_res = f.readlines()
         test_output, stack_trace = parse_test_report(test_res)
@@ -104,7 +107,7 @@ def run_test_with_instrument(test_case: TestCase, path_manager: PathManager):
         with open(stack_trace_file, "w") as f:
             f.writelines(stack_trace)
         assert all(os.path.exists(f) for f in all_files)
-    
+
     test_case.test_output = read_text(test_output_file, max_lines=100)
     test_case.stack_trace = read_text(stack_trace_file, max_lines=50)
 
@@ -266,10 +269,10 @@ def get_failed_tests(path_manager: PathManager) -> TestFailure:
             test_classes[test_class_name].test_cases.append(test_case)
 
     # get modified methods as the buggy methods for evaluation
-    path_manager.logger.info("[get test failure object] get modified methods as the buggy methods for evaluation...")
+    path_manager.logger.info("get modified methods as the buggy methods for evaluation...")
     buggy_methods = get_modified_methods(path_manager)
     
-    path_manager.logger.info("[get test failure object] construct the TestFailure object...")
+    path_manager.logger.info("construct the TestFailure object...")
     test_failure = TestFailure(path_manager.project,
                                path_manager.bug_id,
                                list(test_classes.values()),
@@ -277,7 +280,7 @@ def get_failed_tests(path_manager: PathManager) -> TestFailure:
     
     with open(path_manager.test_failure_file, "wb") as f:
         pickle.dump(test_failure, f)
-        path_manager.logger.info(f"[get test failure object] Save failed tests to {path_manager.test_failure_file}")
+        path_manager.logger.info(f"Save failed tests to {path_manager.test_failure_file}")
 
     return test_failure
 
@@ -387,9 +390,9 @@ def run_all_tests(path_manager: PathManager, test_failure: TestFailure):
     """
 
     for test_class in test_failure.test_classes:
-        path_manager.logger.info(f"[run all tests] test class: {path_manager.project}-{path_manager.bug_id} {test_class.name}")
+        path_manager.logger.info(f"test class: {path_manager.project}-{path_manager.bug_id} {test_class.name}")
         for test_case in test_class.test_cases:
-            path_manager.logger.info(f"[run all tests]   \u14AA test case: {path_manager.project}-{path_manager.bug_id} {test_case.name}")
+            path_manager.logger.info(f"\u14AA test case: {path_manager.project}-{path_manager.bug_id} {test_case.name}")
             test_cache_dir = os.path.join(path_manager.bug_path, test_class.name, test_case.name)
             os.makedirs(test_cache_dir, exist_ok=True)
             path_manager.test_cache_dir = test_cache_dir

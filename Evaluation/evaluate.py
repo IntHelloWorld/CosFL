@@ -210,7 +210,8 @@ if __name__ == "__main__":
     # res_name = "DEBUG_Q(GPT-4o)_S(codeqwen-1_5-7B)_E(Jina)_R(Voyage)_Cov(true)"
     
     """Test use root causes queries"""
-    res_name = "DEBUG_Q(GPT-4o+causes)_S(codeqwen-1_5-7B)_E(Jina)_R(Jina)_Cov(true)"
+    # res_name = "DEBUG_Q(GPT-4o+causes)_S(codeqwen-1_5-7B)_E(Jina)_R(Jina)_Cov(true)"
+    res_name = "BEST_Q(qwen2-72b+causes)_E(Jina-code)_R(Cohere)_Cov(true)"
     
     res_path = os.path.join(res_path, res_name)
     evaluate_all(res_path)

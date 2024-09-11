@@ -40,9 +40,9 @@ def main():
     path_manager.logger.info("*" * 100)
     path_manager.logger.info(f"Start debugging bug d4j{args.version}-{args.project}-{args.bugID}")
     
-    if os.path.exists(path_manager.res_file):
-        path_manager.logger.info(f"d4j{args.version}-{args.project}-{args.bugID} already finished, skip!")
-        return
+    # if os.path.exists(path_manager.res_file):
+    #     path_manager.logger.info(f"d4j{args.version}-{args.project}-{args.bugID} already finished, skip!")
+    #     return
 
     # check out the d4j project
     path_manager.logger.info("[checkout] start...")
