@@ -40,5 +40,7 @@ def auto_read(file):
     with open(file, 'rb') as f:
         content = f.read()
     detected_encoding = chardet.detect(content)['encoding']
+    if detected_encoding is None:
+        detected_encoding = 'utf-8'
     text = content.decode(detected_encoding)
     return text

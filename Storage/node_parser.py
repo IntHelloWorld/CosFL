@@ -12,19 +12,9 @@ from llama_index.core.schema import BaseNode, Document, NodeRelationship
 from llama_index.core.utils import get_tqdm_iterable
 from tree_sitter import Parser as TreeSitterParser
 
-sys.path.append(Path(__file__).resolve().parents[1].as_posix())
 from Storage.splitter import JavaClassSplitter
 
 LANGUAGE = "java"
-
-def _add_parent_child_relationship(parent_node: BaseNode, child_node: BaseNode) -> None:
-    """Add parent/child relationship between nodes."""
-    child_list = parent_node.relationships.get(NodeRelationship.CHILD, [])
-    child_list.append(child_node.as_related_node_info())
-    parent_node.relationships[NodeRelationship.CHILD] = child_list
-
-    child_node.relationships[NodeRelationship.PARENT] = parent_node.as_related_node_info()
-
 
 def get_leaf_nodes(nodes: List[BaseNode]) -> List[BaseNode]:
     """Get leaf nodes."""

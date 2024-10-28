@@ -1,11 +1,9 @@
-import os
 import sys
 from difflib import unified_diff
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List
 
 import tree_sitter
-from tree_sitter import Language, Parser
 from unidiff import PatchSet
 
 sys.path.append(Path(__file__).resolve().parents[2].as_posix())
@@ -17,7 +15,7 @@ METHOD_DECLARATION_TYPES = ["method_declaration", "constructor_declaration"]
 LANGUAGE = "java"
 
 class JavaMethodExtractor:
-    def __init__(self, lib_path: str) -> None:
+    def __init__(self) -> None:
         try:
             import tree_sitter_languages  # pants: no-infer-dep
 
@@ -104,13 +102,13 @@ class JavaMethodExtractor:
             if only_class is not None:
                 if class_name != only_class:
                     return None
-            method_code = "\n".join(code_list[node.start_point[0]: node.end_point[0] + 1])
+            method_code = bytes.decode(node.text).replace("\r", "")
             method_name = get_method_name(node)
             param_types = get_param_types(node)
             return_type = get_return_type(node)
             method_location = (node.start_point, node.end_point)
             if "comment" in node.prev_sibling.type:
-                method_comment = bytes.decode(node.prev_sibling.text)
+                method_comment = bytes.decode(node.prev_sibling.text).replace("\r", "")
                 method_text = "\n".join(code_list[node.prev_sibling.start_point[0]: node.end_point[0] + 1])
             else:
                 method_comment = ""

@@ -1,101 +1,11 @@
 import os
 import shutil
 
-D4J_ALL = {
-    "d4j2.0.1": {
-        "Chart": {
-            "begin": 1,
-            "end": 26,
-            "deprecate": []
-        },
-        "Closure": {
-            "begin": 1,
-            "end": 176,
-            "deprecate": [63, 93]
-        },
-        "Lang": {
-            "begin": 1,
-            "end": 65,
-            "deprecate": [2]
-        },
-        "Math": {
-            "begin": 1,
-            "end": 106,
-            "deprecate": []
-        },
-        "Time": {
-            "begin": 1,
-            "end": 27,
-            "deprecate": [21]
-        },
-        "Mockito": {
-            "begin": 1,
-            "end": 38,
-            "deprecate": []
-        },
-        "Cli": {
-            "begin": 1,
-            "end": 40,
-            "deprecate": [6]
-        },
-        "Codec": {
-            "begin": 1,
-            "end": 18,
-            "deprecate": []
-        },
-        "Collections": {
-            "begin": 25,
-            "end": 28,
-            "deprecate": []
-        },
-        "Compress": {
-            "begin": 1,
-            "end": 47,
-            "deprecate": []
-        },
-        "Csv": {
-            "begin": 1,
-            "end": 16,
-            "deprecate": []
-        },
-        "Gson": {
-            "begin": 1,
-            "end": 18,
-            "deprecate": []
-        },
-        "JacksonCore": {
-            "begin": 1,
-            "end": 26,
-            "deprecate": []
-        },
-        "JacksonDatabind": {
-            "begin": 1,
-            "end": 112,
-            "deprecate": []
-        },
-        "JacksonXml": {
-            "begin": 1,
-            "end": 6,
-            "deprecate": []
-        },
-        "Jsoup": {
-            "begin": 1,
-            "end": 93,
-            "deprecate": []
-        },
-        "JxPath": {
-            "begin": 1,
-            "end": 22,
-            "deprecate": []
-        },
-    },
-}
-
 ALL_BUGS = {
     "d4j1.4.0": {
         'Chart': (list(range(1, 27)), [23]),
         'Closure': (list(range(1, 134)), [28, 49, 57, 63, 93, 104, 106, 125]),
-        'Lang': (list(range(1, 66)), [2, 23, 25, 56]),
+        'Lang': (list(range(1, 66)), [2, 23, 25, 43, 56]),
         'Math': (list(range(1, 107)), [3, 12, 14, 35, 41, 67, 104]),
         'Mockito': (list(range(1, 39)), [5, 16, 26]),
         'Time': (list(range(1, 28)), [11, 21])
@@ -124,6 +34,15 @@ ALL_BUGS = {
         'Dagger_core': (list(range(1, 21)), [5], "core"),
     }
 }
+
+# Math-6
+
+# ALL_BUGS = {
+#     "d4j1.4.0": {
+#         'Chart': (list(range(1, 27)), [23]),
+#         'Closure': (list(range(1, 134)), [28, 49, 57, 63, 93, 104, 106, 125]),
+#     },
+# }
 
 def delete_deprecated():
     projects_dir = "/home/qyh/projects/GarFL/Projects"

@@ -6,6 +6,7 @@ import re
 import shutil
 import sys
 from functools import reduce
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 from numpy import full
@@ -29,15 +30,15 @@ from Utils.context_manager import WorkDir
 from Utils.path_manager import PathManager
 
 filepath = os.path.dirname(__file__)
-TREE_SITTER_LIB_PATH = os.path.join(
-    filepath, "methodExtractor/my-languages.so")
 root = os.path.dirname(filepath)
 directory = os.path.join(root, "DebugResult")
 
 
 def check_out(path_manager: PathManager):
-    if not path_manager.all_methods and os.path.exists(path_manager.method_nodes_file):
-        return
+    if os.path.exists(path_manager.method_nodes_file):
+        callgraph_files = list(Path(path_manager.bug_path).rglob("callgraph.graphml"))
+        if len(callgraph_files) > 0:
+            return
     with WorkDir(path_manager.proj_tmp_path):
         if not os.path.exists(path_manager.buggy_path):
             if path_manager.subproj:
@@ -49,6 +50,8 @@ def check_out(path_manager: PathManager):
                 run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}f -w fixed -s {path_manager.subproj}")
             else:
                 run_cmd(f"{path_manager.bug_exec} checkout -p {path_manager.project} -v {path_manager.bug_id}f -w fixed")
+    if not os.path.exists(path_manager.buggy_path) or not os.path.exists(path_manager.fixed_path):
+        raise FileNotFoundError(f"Checkout Error: {path_manager.buggy_path} or {path_manager.fixed_path} not exists.")
 
 
 def run_single_test(test_case: TestCase, path_manager: PathManager):
@@ -79,7 +82,7 @@ def run_single_test(test_case: TestCase, path_manager: PathManager):
 
 def run_test_with_instrument(test_case: TestCase, path_manager: PathManager):
     loaded_classes_file = os.path.join(path_manager.test_cache_dir, "loaded_classes.txt")
-    calltrace_file = os.path.join(path_manager.test_cache_dir, "calltrace.txt")
+    calltrace_file = os.path.join(path_manager.test_cache_dir, "callgraph.graphml")
     test_output_file = os.path.join(path_manager.test_cache_dir, "test_output.txt")
     stack_trace_file = os.path.join(path_manager.test_cache_dir, "stack_trace.txt")
     all_files = [loaded_classes_file, calltrace_file, test_output_file, stack_trace_file]
@@ -97,8 +100,9 @@ def run_test_with_instrument(test_case: TestCase, path_manager: PathManager):
             f"-a -Djvmargs=-javaagent:{path_manager.agent_lib}=classesPath={class_path}"
         with WorkDir(path_manager.buggy_path):
             run_cmd(cmd)
-            shutil.copy(f"{path_manager.buggy_path}/calltrace.txt", path_manager.test_cache_dir)
+            shutil.copy(f"{path_manager.buggy_path}/callgraph.graphml", path_manager.test_cache_dir)
             shutil.copy(f"{path_manager.buggy_path}/loaded_classes.txt", path_manager.test_cache_dir)
+            shutil.rmtree(os.path.join(path_manager.test_cache_dir, "calltrace.txt"), ignore_errors=True)
         with open(f"{path_manager.buggy_path}/failing_tests", "r") as f:
             test_res = f.readlines()
         test_output, stack_trace = parse_test_report(test_res)
@@ -128,7 +132,7 @@ def get_test_method(path_manager: PathManager,
     
     code = auto_read(test_file)
 
-    function_extractor = JavaMethodExtractor(TREE_SITTER_LIB_PATH)
+    function_extractor = JavaMethodExtractor()
     methods = function_extractor.get_java_methods(code)
     assert len(methods) > 0, f"Error: No method found in {test_file}."
     for method in methods:
@@ -159,6 +163,8 @@ def get_modified_methods(path_manager: PathManager):
     buggy_methods = []
 
     for class_name in modified_classes:
+        if class_name.endswith(".txt"):
+            continue
         
         # fix errors in GrowingBugs
         if path_manager.project == "IO":
@@ -183,7 +189,7 @@ def get_modified_methods(path_manager: PathManager):
         
         fixed_code = auto_read(fixed_file)
 
-        function_extractor = JavaMethodExtractor(TREE_SITTER_LIB_PATH)
+        function_extractor = JavaMethodExtractor()
         methods = function_extractor.get_buggy_methods(buggy_code, fixed_code)
         for method in methods:
             method.class_full_name = class_name
@@ -244,7 +250,7 @@ def get_properties(path_manager: PathManager):
 def get_failed_tests(path_manager: PathManager) -> TestFailure:
     """Get the TestFailure object for a defect4j bug.
     """
-    
+
     try:
         with open(path_manager.test_failure_file, "rb") as f:
             test_failure = pickle.load(f)
@@ -258,11 +264,17 @@ def get_failed_tests(path_manager: PathManager) -> TestFailure:
     for test_name in path_manager.failed_test_names:
         test_class_name, test_method_name = test_name.split("::")
         test_case = TestCase(test_name)
-        test_case.test_method = get_test_method(
+        test_cache_dir = os.path.join(path_manager.bug_path, test_class_name, test_name)
+        os.makedirs(test_cache_dir, exist_ok=True)
+        test_method_file = os.path.join(test_cache_dir, "test_method.txt")
+        test_method = get_test_method(
             path_manager,
             test_class_name,
             test_case.test_method_name,
         )
+        with open(test_method_file, "w") as f:
+            f.write(test_method.text)
+        test_case.test_method = test_method
         if test_class_name not in test_classes:
             test_classes[test_class_name] = TestClass(test_class_name, [test_case])
         else:
@@ -271,13 +283,13 @@ def get_failed_tests(path_manager: PathManager) -> TestFailure:
     # get modified methods as the buggy methods for evaluation
     path_manager.logger.info("get modified methods as the buggy methods for evaluation...")
     buggy_methods = get_modified_methods(path_manager)
-    
+
     path_manager.logger.info("construct the TestFailure object...")
     test_failure = TestFailure(path_manager.project,
                                path_manager.bug_id,
                                list(test_classes.values()),
                                buggy_methods)
-    
+
     with open(path_manager.test_failure_file, "wb") as f:
         pickle.dump(test_failure, f)
         path_manager.logger.info(f"Save failed tests to {path_manager.test_failure_file}")

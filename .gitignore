@@ -7,3 +7,5 @@ classtracer/
 Projects/
 llama.log/
 tmp/
+DocStores/
+VectorStores/
