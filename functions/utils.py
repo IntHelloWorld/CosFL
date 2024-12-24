@@ -6,7 +6,6 @@ import chardet
 
 
 def run_cmd(cmd: str):
-    print("-" * 50)
     print(f"run command: {cmd}")
     p = sp.Popen(cmd.split(" "), stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE)
     output, err = p.communicate()
@@ -41,5 +40,7 @@ def auto_read(file):
     with open(file, 'rb') as f:
         content = f.read()
     detected_encoding = chardet.detect(content)['encoding']
+    if detected_encoding is None:
+        detected_encoding = 'utf-8'
     text = content.decode(detected_encoding)
     return text

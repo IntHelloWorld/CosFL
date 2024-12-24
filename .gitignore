@@ -5,4 +5,7 @@ Stores*/
 *.vscode/
 classtracer/
 Projects/
-llama.log
+llama.log/
+tmp/
+DocStores/
+VectorStores/
