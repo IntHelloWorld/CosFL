@@ -4,7 +4,6 @@ langchain==0.2.13
 llama-index==0.10.59
 llama-index-postprocessor-jinaai-rerank==0.1.6
 llama-index-postprocessor-cohere-rerank==0.1.7
-llama-index-postprocessor-voyageai-rerank==0.1.2
 llama-index-embeddings-jinaai==0.2.0
 llama-index-embeddings-voyageai==0.1.4
 llama-index-embeddings-cohere==0.1.9
