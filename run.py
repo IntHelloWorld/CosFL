@@ -5,7 +5,12 @@ import sys
 
 from Diagnose.agent import DiagnoseAgent
 from Evaluation.evaluate import evaluate
-from functions.d4j import check_out, get_failed_tests, get_properties, run_all_tests
+from functions.d4j import (
+    check_out,
+    get_failed_tests,
+    get_properties,
+    run_all_tests,
+)
 from Retrieve.retriever import MethodRetriever
 from Storage.store import HybridStore
 from Utils.model import set_models
@@ -14,24 +19,40 @@ from Utils.path_manager import PathManager
 root = os.path.dirname(__file__)
 sys.path.append(root)
 
+
 def main():
-    parser = argparse.ArgumentParser(description='argparse')
+    parser = argparse.ArgumentParser(description="argparse")
     parser.add_argument(
         "--config",
         type=str,
-        default="default.yaml",
+        default="mimic.yaml",
         help="Name of config, which is used to load configuration under Config/",
     )
-    parser.add_argument('--version', type=str, default="d4j1.4.0",
-                        help="Version of defects4j")
-    parser.add_argument('--project', type=str, default="Chart",
-                        help="Name of project, your debug result will be generated in DebugResult/d4jversion_project_bugID")
-    parser.add_argument('--bugID', type=int, default=1,
-                        help="Prompt of software")
-    parser.add_argument('--subproj', type=str, required=False, default="",
-                        help="The subproject of the project")
-    parser.add_argument('--verbose', type=bool, default=False,
-                        help="Whether to show the detailed runtime information")
+    parser.add_argument(
+        "--version", type=str, default="d4j1.4.0", help="Version of defects4j"
+    )
+    parser.add_argument(
+        "--project",
+        type=str,
+        default="Chart",
+        help="Name of project, your debug result will be generated in DebugResult/d4jversion_project_bugID",
+    )
+    parser.add_argument(
+        "--bugID", type=int, default=1, help="Prompt of software"
+    )
+    parser.add_argument(
+        "--subproj",
+        type=str,
+        required=False,
+        default="",
+        help="The subproject of the project",
+    )
+    parser.add_argument(
+        "--verbose",
+        type=bool,
+        default=False,
+        help="Whether to show the detailed runtime information",
+    )
 
     args = parser.parse_args()
 
@@ -41,7 +62,9 @@ def main():
 
     path_manager = PathManager(args)
     path_manager.logger.info("*" * 100)
-    path_manager.logger.info(f"Start debugging bug {args.version}-{args.project}-{args.bugID}")
+    path_manager.logger.info(
+        f"Start debugging bug {args.version}-{args.project}-{args.bugID}"
+    )
 
     # if os.path.exists(path_manager.res_file):
     #     path_manager.logger.info(f"d4j{args.version}-{args.project}-{args.bugID} already finished, skip!")
@@ -65,20 +88,21 @@ def main():
 
     # init store
     store = HybridStore(path_manager)
-    
+
     # diagnose faulty functionalities
     diag_agent = DiagnoseAgent(path_manager, store)
     faulty_funcs = diag_agent.diagnose(test_failure_obj)
-    
+
     # retrieve methods
     method_retriever = MethodRetriever(path_manager, store)
     method_nodes = method_retriever.retrieve_methods(faulty_funcs)
-    
+
     # Evaluate
     evaluate(path_manager, method_nodes, [], test_failure_obj)
-    
+
     if path_manager.config.clear:
         shutil.rmtree(path_manager.proj_tmp_path, ignore_errors=True)
+
 
 if __name__ == "__main__":
     main()

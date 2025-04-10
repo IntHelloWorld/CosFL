@@ -9,9 +9,18 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from tqdm import tqdm
 
 from Retrieve.hack import postprocess_nodes
-from Retrieve.prompt import CHAT_RERANK_TEMPLATE
+from Retrieve.prompt import (
+    CHAT_RERANK_TEMPLATE,
+    EXAMPLE_CHAT_RERANK_PROMPT,
+    EXAMPLE_RERANK_RESPONSE,
+)
 from Utils.async_utils import asyncio_run, run_jobs_with_rate_limit
-from Utils.model import get_embedding_reranker, parse_llm_output
+from Utils.model import (
+    calculate_in_cost,
+    calculate_out_cost,
+    get_embedding_reranker,
+    parse_llm_output,
+)
 from Utils.path_manager import PathManager
 
 
@@ -49,19 +58,34 @@ class ChatReranker:
         if os.path.exists(rerank_file):
             with open(rerank_file, "r") as f:
                 result = json.load(f)
+                in_tokens, in_cost = calculate_in_cost(EXAMPLE_CHAT_RERANK_PROMPT)
+                out_tokens, out_cost = calculate_out_cost(str(result))
             await sleep(0.1)  # this is for the progress bar to show up correctly
-            return result
+            return {
+                "response": result,
+                "tokens": in_tokens + out_tokens,
+                "cost": in_cost + out_cost
+            }
         
         messages = CHAT_RERANK_TEMPLATE.format_messages(
             causes_ph=self.diagnose_text,
             method_code_ph=node.text
         )
+        in_tokens, in_cost = calculate_in_cost(messages)
         
-        response = await self.path_manager.reasoning_llm.achat(messages)
-        result = parse_llm_output(response.message.content)
-        with open(rerank_file, "w") as f:
-            json.dump(result, f, indent=4)
-        return result
+        if self.path_manager.config.mimic:
+            result = EXAMPLE_RERANK_RESPONSE
+        else:
+            response = await self.path_manager.reasoning_llm.achat(messages)
+            result = parse_llm_output(response.message.content)
+            with open(rerank_file, "w") as f:
+                json.dump(result, f, indent=4)
+        out_tokens, out_cost = calculate_out_cost(str(result))
+        return {
+            "response": result,
+            "tokens": in_tokens + out_tokens,
+            "cost": in_cost + out_cost
+        }
     
     async def _aget_score_for_nodes(self, nodes: List[NodeWithScore]) -> List[NodeWithScore]:
         node_score_jobs = []
@@ -75,9 +99,14 @@ class ChatReranker:
             desc="Chat Reranking"
         )
         
+        responses = [result["response"] for result in results]
+        tokens = [result["tokens"] for result in results]
+        costs = [result["cost"] for result in results]
+        self.path_manager.logger.info(f"Chat rerank cost: {sum(tokens)} tokens, {sum(costs)} money")
+        
         for i, node in enumerate(nodes):
-            node.metadata["llm_score"] = results[i]["Score"]
-            node.metadata["llm_reason"] = results[i]["Reason"]
+            node.metadata["llm_score"] = responses[i]["Score"]
+            node.metadata["llm_reason"] = responses[i]["Reason"]
         return nodes
     
     def _get_score_for_nodes(self, nodes: List[NodeWithScore]) -> List[NodeWithScore]:

@@ -17,7 +17,7 @@ from functions.my_types import TestCase, TestFailure
 from Retrieve.index import get_context_index
 from Storage.store import HybridStore
 from Utils.async_utils import asyncio_run, run_jobs_with_rate_limit
-from Utils.model import parse_llm_output
+from Utils.model import calculate_in_cost, calculate_out_cost, parse_llm_output
 from Utils.path_manager import PathManager
 
 
@@ -34,7 +34,11 @@ class DiagnoseAgent:
 
     def diagnose(self, test_failure: TestFailure) -> List[Dict[str, str]]:
         self.logger.info(f"Diagnosing faulty functionality...")
-        faulty_func = asyncio_run(self._adiagnose(test_failure))
+        result = asyncio_run(self._adiagnose(test_failure))
+        faulty_func = [res["response"] for res in result]
+        tokens = sum([res["tokens"] for res in result])
+        cost = sum([res["cost"] for res in result])
+        self.logger.info(f"Diagnose finished, total cost: {tokens} tokens, {cost} USD")
         return faulty_func
     
     
@@ -52,6 +56,16 @@ class DiagnoseAgent:
         return responses
     
     
+    def calculate_cost(self, dialog: Dict[str, str]) -> Dict[str, str]:
+        in_costs = [calculate_in_cost(str(dialog[k]['user'])) for k in dialog]
+        out_costs = [calculate_out_cost(str(dialog[k]['llm'])) for k in dialog]
+        in_tokens, in_money = zip(*in_costs)
+        out_tokens, out_money = zip(*out_costs)
+        tokens = sum(in_tokens) + sum(out_tokens)
+        money = sum(in_money) + sum(out_money)
+        return tokens, money
+    
+    
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(5))
     async def _adiagnose_test_case(self, test_case: TestCase) -> Dict[str, str]:
         max_rounds = self.path_manager.config.hyper.max_diagnose_rounds
@@ -66,7 +80,12 @@ class DiagnoseAgent:
         if os.path.exists(dialog_file):
             with open(dialog_file, "r") as f:
                 dialog = json.load(f)
-                return dialog["end"]["llm"]
+                tokens, money = self.calculate_cost(dialog)
+                return {
+                    "response": dialog["end"]["llm"],
+                    "tokens": tokens,
+                    "cost": money
+                }
         else:
             dialog = {}
         
@@ -111,7 +130,12 @@ class DiagnoseAgent:
                 }
                 with open(dialog_file, "w") as f:
                     json.dump(dialog, f, indent=4)
-                return result 
+                tokens, money = self.calculate_cost(dialog)
+                return {
+                    "response": result,
+                    "tokens": tokens,
+                    "cost": money
+                }
             else:
                 raise ValueError("Unexpected response format from LLM")
 

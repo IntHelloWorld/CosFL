@@ -30,7 +30,7 @@ from CallGraph.prompt import (
 from Storage.node_parser import JavaNodeParser
 from Storage.node_utils import default_id_func, get_node_text_for_embedding
 from Utils.async_utils import asyncio_run, run_jobs_with_rate_limit
-from Utils.model import parse_llm_output
+from Utils.model import calculate_in_cost, calculate_out_cost, parse_llm_output
 from Utils.path_manager import PathManager
 
 
@@ -82,6 +82,10 @@ class HybridStore:
             f"call graph clustered into {len(sub_graphs)} subgraphs: "
             f"{[len(subgraph.nodes) for subgraph in sub_graphs]}"
         )
+        cluster_res_file = os.path.join(self.path_manager.res_path, "cluster_result.txt")
+        with open(cluster_res_file, "w") as f:
+            sizes = [str(len(subgraph.nodes)) for subgraph in sub_graphs]
+            f.write(','.join(sizes))
         return sub_graphs
 
     def build_context_nodes(
@@ -167,11 +171,21 @@ class HybridStore:
         self.logger.info(f"found {len(context_nodes)} subgraphs already summarized")
         self.logger.info(f"found {len(unbinded_subgraphs)} subgraphs unbinded with source code")
         
+        if self.path_manager.config.mimic:
+            todo_subgraphs = subgraphs
+        
         if len(todo_subgraphs) == 0:
             return context_nodes
 
         self.logger.info(f"summarizing {len(todo_subgraphs)} contexts...")
-        responses = asyncio_run(self._asubgraphs_summarization(todo_subgraphs))
+        results = asyncio_run(self._asubgraphs_summarization(todo_subgraphs))
+        responses = [res["response"] for res in results]
+        tokens = sum([res["tokens"] for res in results])
+        cost = sum([res["cost"] for res in results])
+        self.logger.info(f"get context nodes with {tokens} tokens and {cost} cost")
+        if self.path_manager.config.mimic:
+            return context_nodes
+        
         new_context_nodes = self.build_context_nodes(
             todo_subgraphs,
             responses,
@@ -201,12 +215,20 @@ class HybridStore:
         messages = METHOD_CALL_SUBGRAPH_SUMMARIZATION_TEMPLATE.format_messages(
             input_text=input_text
         )
-        response = await Settings.llm.achat(messages)
-        json_res = parse_llm_output(response.message.content)
-        # FIXME: for testing
-        # json_res = OUTPUT_EXAMPLE
-        # json_res["title"] = input_text
-        return json_res
+        in_tokens, in_cost = calculate_in_cost(input_text)
+        if self.path_manager.config.mimic:
+            # For mimic
+            json_res = OUTPUT_EXAMPLE
+            json_res["title"] = input_text
+        else:
+            response = await Settings.llm.achat(messages)
+            json_res = parse_llm_output(response.message.content)
+        out_tokens, out_cost = calculate_out_cost(str(json_res))
+        return {
+            "tokens": in_tokens + out_tokens,
+            "cost": in_cost + out_cost,
+            "response": json_res
+        }
 
     def bind_call_graph(self, method_nodes):
         """
@@ -376,6 +398,9 @@ class HybridStore:
         self.logger.info(f"found {len(method_nodes) - len(todo_methods)} methods already summarized")
         desc_nodes = list(desc_nodes_dict.values())
 
+        if self.path_manager.config.mimic:
+            todo_methods = method_nodes
+        
         if len(todo_methods) == 0:
             return desc_nodes
 
@@ -386,7 +411,15 @@ class HybridStore:
                 method_contexts.append(self.doc_store.get_node(mn.metadata["ctxt_node_id"]))
             else:
                 method_contexts.append(None)
-        responses = asyncio_run(self._amethods_summarization(todo_methods, method_contexts))
+        results = asyncio_run(self._amethods_summarization(todo_methods, method_contexts))
+        responses = [res["response"] for res in results]
+        tokens = sum([res["tokens"] for res in results])
+        cost = sum([res["cost"] for res in results])
+        self.logger.info(f"get description nodes with {tokens} tokens and {cost} cost")
+        
+        if self.path_manager.config.mimic:
+            return desc_nodes
+        
         new_desc_nodes = self.build_description_nodes(
             todo_methods,
             responses
@@ -445,12 +478,20 @@ class HybridStore:
         messages = METHOD_SUMMARIZATION_TEMPLATE.format_messages(
             input_text=input_text
         )
-        response = await Settings.llm.achat(messages)
-        json_res = parse_llm_output(response.message.content)
-        # print(json_res)
-        # FIXME: for testing
-        # json_res = METHOD_SUMMARIZATION_EXAMPLE
-        return json_res
+        in_tokens, in_cost = calculate_in_cost(input_text)
+        # For mimic
+        if self.path_manager.config.mimic:
+            json_res = METHOD_SUMMARIZATION_EXAMPLE
+            json_res["title"] = input_text
+        else:
+            response = await Settings.llm.achat(messages)
+            json_res = parse_llm_output(response.message.content)
+        out_tokens, out_cost = calculate_out_cost(str(json_res))
+        return {
+            "response": json_res,
+            "tokens": in_tokens + out_tokens,
+            "cost": in_cost + out_cost
+        }
 
     def build_description_nodes(self, method_nodes, responses, no_context=False):
         """
@@ -517,6 +558,12 @@ class HybridStore:
             no_embeded_nodes = all_nodes
         self.logger.info(f"found {len(all_nodes) - len(no_embeded_nodes)} nodes already embedded")
 
+        if self.path_manager.config.mimic:
+            all_text = [get_node_text_for_embedding(node, self.use_context) for node in all_nodes]
+            all_costs = [calculate_in_cost(text, price_per_1m_tokens=0.02) for text in all_text]
+            tokens, cost = zip(*all_costs)
+            self.logger.info(f"mimic cost: {sum(tokens)} tokens, {sum(cost)} money")
+        
         if len(no_embeded_nodes) == 0:
             return all_nodes
 
