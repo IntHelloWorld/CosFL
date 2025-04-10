@@ -23,7 +23,7 @@ GrowingBugs: [https://github.com/liuhuigmail/GrowingBugRepository](https://githu
 You can easily install the required Python environment through the commands:
 
 ```shell
-conda create -n CosFL python=3.9
+conda create -n CosFL python=3.9.18
 conda activate CosFL
 pip install -r requirements.txt
 ```
