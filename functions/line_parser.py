@@ -61,7 +61,10 @@ def parse_test_report(lines):
     """Seperate the raw test information into output and report."""
     output = []
     report = []
-    test_method = lines[0].strip("\n").split("::")[1]
+    if "::" in lines[0]:
+        test_method = lines[0].strip("\n").split("::")[1]
+    else:
+        test_method = ""
     flag = False  # for skipping the unrelated trace
     last_line = ""  # for skipping the infinite loop
     for i, line in enumerate(lines):
@@ -72,7 +75,7 @@ def parse_test_report(lines):
         elif line.startswith("\tat"):
             if not flag:
                 report.append(line)
-            if test_method in line:
+            if test_method != "" and test_method in line:
                 flag = True
         else:
             output.append(line)

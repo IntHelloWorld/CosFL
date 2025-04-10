@@ -1,0 +1,46 @@
+dependencies:
+  agent_lib: /home/qyh/projects/GarFL/classtracer/target/classtracer-1.0.jar
+  D4J_exec: /home/qyh/DATASET/defects4j-2.0.1/framework/bin/defects4j
+  GB_exec: /home/qyh/DATASET/GrowingBugRepository/framework/bin/defects4j
+models:
+  summary:
+    series: openai
+    model: deepseek-chat
+    api_key: sk-666cc3eea6ca4464ad9793b2c77927df
+    base_url: https://api.deepseek.com/v1
+    max_tokens: 4000
+    rate_limit: 6000
+    cache_name: deepseek
+  embed:
+    series: jina
+    model: jina-embeddings-v2-base-en
+    api_key: jina_28bca4e341664d619f580aefa0115141D_xM1gOcqRMzwtWnIkW3H2itrzpk
+    batch_size: 1024
+    base_url: null
+    cache_name: jina-embeddings-v2-base-en
+  reason:
+    series: openai
+    model: deepseek-chat
+    api_key: sk-666cc3eea6ca4464ad9793b2c77927df
+    base_url: https://api.deepseek.com/v1
+    max_tokens: 4000
+    rate_limit: 6000
+    cache_name: deepseek
+  rerank:
+    series: cohere
+    model: rerank-english-v3.0
+    api_key: n3jBp9MVvlh1tr2ciqib1iz5utdnHzNzcRgqhOdn
+    base_url: null
+hyper:
+  max_diagnose_rounds: 5
+  sbfl_formula: ochiai
+  retrieve_top_n: 50
+  rerank_top_n: 50
+  chat_rerank_top_n: 10
+  max_module_size: 15
+  min_module_size: 5
+use_chat_rerank: true
+use_context: true
+use_context_retrieval: true
+use_description_retrieval: true
+clear: true
