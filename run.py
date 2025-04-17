@@ -25,7 +25,8 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="mimic.yaml",
+        # default="mimic.yaml",
+        default="default.yaml",
         help="Name of config, which is used to load configuration under Config/",
     )
     parser.add_argument(
