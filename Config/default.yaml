@@ -7,29 +7,29 @@ models:
     series: openai
     model: deepseek-chat
     api_key: null
-    base_url: https://api.key77qiqi.cn/v1
+    base_url: https://api.deepseek.com/v1
     max_tokens: 4000
     rate_limit: 6000
     cache_name: deepseek
   embed:
     series: jina
     model: jina-embeddings-v2-base-en
-    api_key: jina_28bca4e341664d619f580aefa0115141D_xM1gOcqRMzwtWnIkW3H2itrzpk
+    api_key: null
     batch_size: 1024
     base_url: null
     cache_name: jina-embeddings-v2-base-en
   reason:
     series: openai
-    model: gpt-4o
-    api_key: sk-v7P3Utk6orh56BfVD2eGKioxheiQiHURXo7hHHxbZcUBI0eO
-    base_url: https://api.key77qiqi.cn/v1/
+    model: deepseek-chat
+    api_key: null
+    base_url: https://api.deepseek.com/v1
     max_tokens: 4000
     rate_limit: 6000
-    cache_name: gpt-4o
+    cache_name: deepseek
   rerank:
-    series: jina
-    model: jina-reranker-v2-base-multilingual
-    api_key: jina_28bca4e341664d619f580aefa0115141D_xM1gOcqRMzwtWnIkW3H2itrzpk
+    series: cohere
+    model: rerank-english-v3.0
+    api_key: null
     base_url: null
 hyper:
   max_diagnose_rounds: 5
@@ -44,4 +44,3 @@ use_context: true
 use_context_retrieval: true
 use_description_retrieval: true
 clear: true
-mimic: false
